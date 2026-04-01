@@ -1,0 +1,242 @@
+
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OtelPro | Profesyonel Lisans Yönetimi</title>
+    <style>
+        :root { --primary: #3b82f6; --success: #10b981; --bg: #0f172a; --card: #1e293b; --text: #f8fafc; }
+        body { font-family: 'Inter', sans-serif; background-color: var(--bg); color: var(--text); margin: 0; padding: 20px; }
+        .container { max-width: 1100px; margin: 0 auto; }
+        .header { display: flex; justify-content: space-between; items-center; margin-bottom: 30px; background: var(--card); padding: 20px; border-radius: 12px; border: 1px solid #334155; }
+        .grid { display: grid; grid-template-cols: 350px 1fr; gap: 20px; }
+        .card { background: var(--card); border-radius: 12px; padding: 20px; border: 1px solid #334155; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+        h2 { margin-top: 0; font-size: 1.1rem; color: var(--primary); border-bottom: 1px solid #334155; padding-bottom: 10px; margin-bottom: 15px; }
+        
+        .form-group { margin-bottom: 15px; }
+        label { display: block; font-size: 0.75rem; font-weight: 600; color: #94a3b8; margin-bottom: 5px; text-transform: uppercase; }
+        input, select { width: 100%; padding: 10px; background: #0f172a; border: 1px solid #334155; border-radius: 6px; color: #fff; font-size: 0.9rem; box-sizing: border-box; }
+        input:focus { border-color: var(--primary); outline: none; }
+        
+        .btn { cursor: pointer; border: none; border-radius: 6px; font-weight: 700; padding: 10px 15px; transition: 0.2s; font-size: 0.85rem; }
+        .btn-primary { background: var(--primary); color: white; width: 100%; }
+        .btn-success { background: var(--success); color: white; }
+        .btn-copy { background: #64748b; color: white; font-size: 0.7rem; padding: 5px 8px; }
+        .btn:hover { opacity: 0.9; transform: translateY(-1px); }
+        
+        table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+        th { text-align: left; color: #94a3b8; padding: 12px; border-bottom: 2px solid #334155; }
+        td { padding: 12px; border-bottom: 1px solid #334155; }
+        
+        .badge { padding: 3px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: bold; }
+        .badge-active { background: #064e3b; color: #4ade80; }
+        .badge-expired { background: #450a0a; color: #f87171; }
+        
+        .result-area { margin-top: 15px; padding: 15px; background: #020617; border-radius: 8px; border: 1px dashed var(--primary); display: none; }
+        .key-display { font-family: 'Courier New', monospace; color: var(--primary); font-weight: bold; font-size: 1rem; word-break: break-all; }
+        
+        .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 100; items-center; justify-center; }
+        .modal-content { background: var(--card); padding: 30px; border-radius: 12px; width: 400px; border: 1px solid var(--primary); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div>
+                <h1 style="margin:0; font-size: 1.5rem;">OtelPro Admin</h1>
+                <p style="margin:0; font-size: 0.8rem; color: #94a3b8;">Müşteri & Lisans Kontrol Paneli</p>
+            </div>
+            <div id="clock" style="font-family: monospace; color: var(--primary); font-weight: bold;"></div>
+        </div>
+
+        <div class="grid">
+            <!-- Firma Kayıt -->
+            <div class="card">
+                <h2>🏢 Yeni Firma Tanımla</h2>
+                <div class="form-group">
+                    <label>Firma Adı</label>
+                    <input type="text" id="firmName" placeholder="Örn: Hotel Caffe">
+                </div>
+                <div class="form-group">
+                    <label>Cihaz Kimliği (Machine ID)</label>
+                    <input type="text" id="mId" placeholder="A1B2-C3D4-...">
+                </div>
+                <button class="btn btn-primary" onclick="registerFirm()">Firmayı Kaydet</button>
+                
+                <div id="resultArea" class="result-area">
+                    <label>Son Üretilen Anahtar:</label>
+                    <div class="key-display" id="keyOut"></div>
+                    <button class="btn btn-copy" style="margin-top:10px" onclick="copyResult()">Kopyala</button>
+                </div>
+            </div>
+
+            <!-- Firma Listesi -->
+            <div class="card">
+                <h2>📋 Kayıtlı Müşteriler</h2>
+                <div style="max-height: 500px; overflow-y: auto;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Firma / ID</th>
+                                <th>Durum</th>
+                                <th>Bitiş Tarihi</th>
+                                <th style="text-align:right">İşlem</th>
+                            </tr>
+                        </thead>
+                        <tbody id="firmList"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Lisans Üretim Modalı -->
+    <div id="licenseModal" class="modal">
+        <div class="modal-content">
+            <h2 id="modalTitle">Lisans Üret</h2>
+            <div class="form-group">
+                <label>Süre Miktarı</label>
+                <input type="number" id="durationVal" value="1" min="1">
+            </div>
+            <div class="form-group">
+                <label>Birim</label>
+                <select id="durationUnit">
+                    <option value="min">Dakika (Test İçin)</option>
+                    <option value="hour">Saat</option>
+                    <option value="day">Gün</option>
+                    <option value="month" selected>Ay</option>
+                    <option value="year">Yıl</option>
+                    <option value="forever">Sınırsız (100 Yıl)</option>
+                </select>
+            </div>
+            <div style="display:flex; gap:10px; margin-top:20px;">
+                <button class="btn btn-primary" onclick="confirmGenerate()">Anahtar Üret</button>
+                <button class="btn" style="background:#475569; color:white;" onclick="closeModal()">İptal</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const SECRET_SALT = "OTELPRO_ENTERPRISE_2024_SECRET_KEY";
+        let firms = JSON.parse(localStorage.getItem('otelpro_firms') || '[]');
+        let activeMid = null;
+
+        function updateClock() {
+            document.getElementById('clock').innerText = new Date().toLocaleString();
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
+
+        function registerFirm() {
+            const name = document.getElementById('firmName').value;
+            const mid = document.getElementById('mId').value.trim().toUpperCase();
+            if(!name || !mid) return alert("Bilgileri eksiksiz girin.");
+
+            if(firms.find(f => f.mid === mid)) return alert("Bu cihaz zaten kayıtlı.");
+
+            firms.push({ name, mid, expiry: Date.now(), lastKey: '' });
+            save();
+            render();
+            alert("Firma kaydedildi. Artık lisans üretebilirsiniz.");
+            document.getElementById('firmName').value = '';
+            document.getElementById('mId').value = '';
+        }
+
+        function openGenerate(mid) {
+            activeMid = mid;
+            const firm = firms.find(f => f.mid === mid);
+            document.getElementById('modalTitle').innerText = `${firm.name} için Lisans`;
+            document.getElementById('licenseModal').style.display = 'flex';
+        }
+
+        function closeModal() {
+            document.getElementById('licenseModal').style.display = 'none';
+        }
+
+        function confirmGenerate() {
+            const val = parseInt(document.getElementById('durationVal').value);
+            const unit = document.getElementById('durationUnit').value;
+            
+            const expiryDate = new Date();
+            if(unit === 'min') expiryDate.setMinutes(expiryDate.getMinutes() + val);
+            else if(unit === 'hour') expiryDate.setHours(expiryDate.getHours() + val);
+            else if(unit === 'day') expiryDate.setDate(expiryDate.getDate() + val);
+            else if(unit === 'month') expiryDate.setMonth(expiryDate.getMonth() + val);
+            else if(unit === 'year') expiryDate.setFullYear(expiryDate.getFullYear() + val);
+            else if(unit === 'forever') expiryDate.setFullYear(expiryDate.getFullYear() + 100);
+
+            const timestamp = expiryDate.getTime();
+            const hexExpiry = timestamp.toString(16).toUpperCase();
+            
+            // Hash Üretimi
+            const input = activeMid + hexExpiry + SECRET_SALT;
+            let hash = 0;
+            for (let i = 0; i < input.length; i++) {
+                hash = ((hash << 5) - hash) + input.charCodeAt(i);
+                hash = hash & hash;
+            }
+            const signature = Math.abs(hash).toString(16).toUpperCase().substring(0, 8);
+            const key = `LIS-${hexExpiry}-${signature}`;
+
+            // Güncelle
+            const firm = firms.find(f => f.mid === activeMid);
+            firm.expiry = timestamp;
+            firm.lastKey = key;
+            
+            save();
+            render();
+            closeModal();
+
+            document.getElementById('keyOut').innerText = key;
+            document.getElementById('resultArea').style.display = 'block';
+        }
+
+        function copyResult() {
+            const text = document.getElementById('keyOut').innerText;
+            navigator.clipboard.writeText(text);
+            alert("Anahtar kopyalandı!");
+        }
+
+        function save() {
+            localStorage.setItem('otelpro_firms', JSON.stringify(firms));
+        }
+
+        function render() {
+            const list = document.getElementById('firmList');
+            list.innerHTML = '';
+            firms.forEach(f => {
+                const isExpired = Date.now() > f.expiry;
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>
+                        <div style="font-weight:bold">${f.name}</div>
+                        <div style="font-size:0.7rem; color:#64748b; font-family:monospace">${f.mid}</div>
+                    </td>
+                    <td>
+                        <span class="badge ${isExpired ? 'badge-expired' : 'badge-active'}">
+                            ${isExpired ? 'SÜRESİ DOLDU' : 'AKTİF'}
+                        </span>
+                    </td>
+                    <td style="font-family:monospace">${new Date(f.expiry).toLocaleString()}</td>
+                    <td style="text-align:right">
+                        <button class="btn btn-success" onclick="openGenerate('${f.mid}')">Anahtar Üret</button>
+                        <button class="btn" style="background:#ef4444; color:white; padding:5px" onclick="deleteFirm('${f.mid}')">Sil</button>
+                    </td>
+                `;
+                list.appendChild(row);
+            });
+        }
+
+        function deleteFirm(mid) {
+            if(confirm("Firmayı silmek istiyor musunuz?")) {
+                firms = firms.filter(f => f.mid !== mid);
+                save();
+                render();
+            }
+        }
+
+        render();
+    </script>
+</body>
+</html>
