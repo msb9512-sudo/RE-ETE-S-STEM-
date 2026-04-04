@@ -1,13 +1,13 @@
 
 import React, { useState } from 'react';
 import { InventoryItem, Order, Role } from '../types';
-import { ShoppingBag, CheckCircle, AlertCircle, TrendingDown, Clock, PackageCheck, History, Search, Zap, ListFilter } from 'lucide-react';
+import { ShoppingBag, CheckCircle, AlertCircle, TrendingDown, Clock, PackageCheck, History, Search, Zap, ListFilter, Calendar } from 'lucide-react';
 
 interface PurchasingProps {
   inventory: InventoryItem[];
   userRole: Role;
   orders?: Order[];
-  onCreateOrder: (items: any[], isDirectEntry: boolean) => void;
+  onCreateOrder: (items: any[], isDirectEntry: boolean, timestamp?: number) => void;
   onReceiveOrder?: (orderId: string) => void;
   isReadonly?: boolean;
 }
@@ -18,6 +18,7 @@ export const Purchasing: React.FC<PurchasingProps> = ({ inventory, userRole, ord
   const [orderPlaced, setOrderPlaced] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [isDirectEntry, setIsDirectEntry] = useState(true);
+  const [purchaseDate, setPurchaseDate] = useState(new Date().toISOString().split('T')[0]);
 
   const lowStockItems = inventory.filter(i => i.quantity <= i.minLevel);
   const filteredAllItems = inventory
@@ -50,7 +51,13 @@ export const Purchasing: React.FC<PurchasingProps> = ({ inventory, userRole, ord
     });
 
     if (orderItems.length > 0) {
-      onCreateOrder(orderItems, isDirectEntry);
+      // Seçilen tarihi timestamp'e çevir
+      const selectedDate = new Date(purchaseDate);
+      const now = new Date();
+      selectedDate.setHours(now.getHours(), now.getMinutes(), now.getSeconds());
+      const timestamp = selectedDate.getTime();
+
+      onCreateOrder(orderItems, isDirectEntry, timestamp);
       setOrderPlaced(true);
       setCart({});
       setTimeout(() => setOrderPlaced(false), 3000);
@@ -92,8 +99,8 @@ export const Purchasing: React.FC<PurchasingProps> = ({ inventory, userRole, ord
     return (
       <div className="space-y-6 animate-fade-in">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <div className="flex-1 w-full max-w-md">
-            <div className="relative group">
+          <div className="flex-1 w-full max-w-md flex items-center gap-3">
+            <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" size={20} />
               <input 
                 type="text" 
@@ -101,6 +108,15 @@ export const Purchasing: React.FC<PurchasingProps> = ({ inventory, userRole, ord
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-2xl shadow-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium text-slate-800"
+              />
+            </div>
+            <div className="relative group min-w-[160px]">
+              <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-600 transition-colors" size={18} />
+              <input 
+                type="date" 
+                value={purchaseDate} 
+                onChange={(e) => setPurchaseDate(e.target.value)}
+                className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-2xl shadow-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-bold text-slate-700 text-sm"
               />
             </div>
           </div>

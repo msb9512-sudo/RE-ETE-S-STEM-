@@ -263,22 +263,29 @@ export const Recipes: React.FC<RecipesProps> = ({ recipes, inventory, categories
                         <p className="text-xs font-bold">Henüz malzeme eklenmedi.</p>
                       </div>
                     ) : (
-                      tempIngredients.map((ing, idx) => {
-                        const invItem = inventory.find(i => i.id === ing.inventoryItemId);
-                        return (
-                          <div key={idx} className="flex justify-between items-center bg-white p-3 rounded-xl border border-slate-100 text-sm group hover:border-indigo-200 transition-colors">
-                            <div>
-                              <p className="font-bold text-slate-800">{invItem?.name || 'Bilinmeyen'}</p>
+                      tempIngredients
+                        .map((ing, originalIndex) => ({ ing, originalIndex }))
+                        .sort((a, b) => {
+                          const nameA = inventory.find(i => i.id === a.ing.inventoryItemId)?.name || "";
+                          const nameB = inventory.find(i => i.id === b.ing.inventoryItemId)?.name || "";
+                          return nameA.localeCompare(nameB, 'tr');
+                        })
+                        .map(({ ing, originalIndex }) => {
+                          const invItem = inventory.find(i => i.id === ing.inventoryItemId);
+                          return (
+                            <div key={originalIndex} className="flex justify-between items-center bg-white p-3 rounded-xl border border-slate-100 text-sm group hover:border-indigo-200 transition-colors">
+                              <div>
+                                <p className="font-bold text-slate-800">{invItem?.name || 'Bilinmeyen'}</p>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <span className="font-black text-indigo-600 bg-indigo-50 px-3 py-1 rounded-lg text-xs">{ing.amount} {ing.unit}</span>
+                                <button onClick={() => setTempIngredients(tempIngredients.filter((_, i) => i !== originalIndex))} className="text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity p-1">
+                                  <Trash2 size={16}/>
+                                </button>
+                              </div>
                             </div>
-                            <div className="flex items-center gap-3">
-                              <span className="font-black text-indigo-600 bg-indigo-50 px-3 py-1 rounded-lg text-xs">{ing.amount} {ing.unit}</span>
-                              <button onClick={() => setTempIngredients(tempIngredients.filter((_, i) => i !== idx))} className="text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity p-1">
-                                <Trash2 size={16}/>
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })
+                          );
+                        })
                     )}
                   </div>
                   {tempIngredients.length > 0 && (

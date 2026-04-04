@@ -218,13 +218,13 @@ const App: React.FC = () => {
     setRecipes(prev => [...prev, ...recipesWithIds]);
   };
 
-  const handleCreateOrder = (items: { inventoryItemId: string; orderQuantity: number; costPerUnit: number }[], isDirectEntry: boolean) => {
+  const handleCreateOrder = (items: { inventoryItemId: string; orderQuantity: number; costPerUnit: number }[], isDirectEntry: boolean, customTimestamp?: number) => {
     if (licenseExpired) return;
 
     const totalCost = items.reduce((acc, curr) => acc + (curr.orderQuantity * curr.costPerUnit), 0);
     const newOrder: Order = {
       id: Date.now().toString(),
-      date: Date.now(),
+      date: customTimestamp || Date.now(),
       status: isDirectEntry ? 'COMPLETED' : 'PENDING',
       items,
       totalEstimatedCost: totalCost,
@@ -259,7 +259,7 @@ const App: React.FC = () => {
     setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: 'COMPLETED' } : o));
   };
 
-  const handleMakeSale = (recipeId: string, quantity: number, staffName: string) => {
+  const handleMakeSale = (recipeId: string, quantity: number, staffName: string, customTimestamp?: number) => {
     if (licenseExpired) return;
     
     const recipe = recipes.find(r => r.id === recipeId);
@@ -270,7 +270,7 @@ const App: React.FC = () => {
       recipeId,
       quantity,
       totalPrice: recipe.price * quantity,
-      timestamp: Date.now(),
+      timestamp: customTimestamp || Date.now(),
       staffName
     };
     setSales(prev => [...prev, newSale]);
@@ -298,6 +298,28 @@ const App: React.FC = () => {
       
       return updatedInventory;
     });
+  };
+
+  const handleStockAction = (itemId: string, type: StockMovementType, amount: number, reason: string, customTimestamp?: number) => {
+    if (licenseExpired) return;
+    
+    setInventory(prev => prev.map(item => {
+      if (item.id === itemId) {
+        return { ...item, quantity: item.quantity - amount };
+      }
+      return item;
+    }));
+
+    const newMovement: StockMovement = {
+      id: Date.now().toString() + Math.random().toString(36).substr(2, 4),
+      inventoryItemId: itemId,
+      type,
+      amount,
+      reason,
+      timestamp: customTimestamp || Date.now(),
+      staffName: currentUser?.name || 'Sistem'
+    };
+    setMovements(prev => [...prev, newMovement]);
   };
 
   const handleSaveCount = (session: CountSession) => {
@@ -381,7 +403,7 @@ const App: React.FC = () => {
         </div>
       )}
       {view === 'dashboard' && <Dashboard inventory={inventory} sales={sales} logs={logs} recipes={recipes} />}
-      {view === 'inventory' && <Inventory inventory={inventory} categories={categories} onAddItem={(i) => setInventory([...inventory, {...i, id: Date.now().toString()}])} onUpdateItem={(id, u) => setInventory(inventory.map(i => i.id === id ? {...i, ...u} : i))} onDeleteItem={(id) => setInventory(inventory.filter(i => i.id !== id))} onStockAction={(id, t, a, r) => setInventory(inventory.map(i => i.id === id ? { ...i, quantity: i.quantity - a } : i))} onAddCategory={(n) => setCategories([...categories, n])} onDeleteCategory={(n) => setCategories(categories.filter(c => c !== n))} isReadonly={licenseExpired} />}
+      {view === 'inventory' && <Inventory inventory={inventory} categories={categories} onAddItem={(i) => setInventory([...inventory, {...i, id: Date.now().toString()}])} onUpdateItem={(id, u) => setInventory(inventory.map(i => i.id === id ? {...i, ...u} : i))} onDeleteItem={(id) => setInventory(inventory.filter(i => i.id !== id))} onStockAction={handleStockAction} onAddCategory={(n) => setCategories([...categories, n])} onDeleteCategory={(n) => setCategories(categories.filter(c => c !== n))} isReadonly={licenseExpired} />}
       {view === 'recipes' && <Recipes recipes={recipes} inventory={inventory} categories={categories} onAddRecipe={(r) => setRecipes([...recipes, {...r, id: Date.now().toString()}])} onUpdateRecipe={(id, r) => setRecipes(recipes.map(rec => rec.id === id ? {...rec, ...r} : rec))} onDeleteRecipe={(id) => setRecipes(recipes.filter(r => r.id !== id))} isReadonly={licenseExpired} />}
       {view === 'sales' && <Sales recipes={recipes} onMakeSale={handleMakeSale} isReadonly={licenseExpired} />}
       {view === 'sales-calendar' && <SalesCalendar sales={sales} recipes={recipes} />}

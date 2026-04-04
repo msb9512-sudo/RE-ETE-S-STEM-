@@ -1,17 +1,18 @@
 
 import React, { useState, useMemo } from 'react';
 import { Recipe, Sale } from '../types';
-import { ShoppingCart, Plus, Minus, CheckCircle, ShieldAlert, Search, X, UtensilsCrossed, Filter } from 'lucide-react';
+import { ShoppingCart, Plus, Minus, CheckCircle, ShieldAlert, Search, X, UtensilsCrossed, Filter, Calendar } from 'lucide-react';
 
 interface SalesProps {
   recipes: Recipe[];
-  onMakeSale: (recipeId: string, qty: number, staffName: string) => void;
+  onMakeSale: (recipeId: string, qty: number, staffName: string, timestamp?: number) => void;
   isReadonly?: boolean;
 }
 
 export const Sales: React.FC<SalesProps> = ({ recipes, onMakeSale, isReadonly = false }) => {
   const [cart, setCart] = useState<{recipeId: string, qty: number}[]>([]);
   const [staffName, setStaffName] = useState("Garson 1");
+  const [saleDate, setSaleDate] = useState(new Date().toISOString().split('T')[0]);
   const [successMsg, setSuccessMsg] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
@@ -52,7 +53,14 @@ export const Sales: React.FC<SalesProps> = ({ recipes, onMakeSale, isReadonly = 
 
   const handleCompleteSale = () => {
     if (isReadonly || cart.length === 0) return;
-    cart.forEach(item => onMakeSale(item.recipeId, item.qty, staffName));
+    
+    // Seçilen tarihi timestamp'e çevir (Günün başlangıcı + şu anki saat/dakika/saniye)
+    const selectedDate = new Date(saleDate);
+    const now = new Date();
+    selectedDate.setHours(now.getHours(), now.getMinutes(), now.getSeconds());
+    const timestamp = selectedDate.getTime();
+
+    cart.forEach(item => onMakeSale(item.recipeId, item.qty, staffName, timestamp));
     setCart([]);
     setSuccessMsg(true);
     setTimeout(() => setSuccessMsg(false), 3000);
@@ -176,16 +184,28 @@ export const Sales: React.FC<SalesProps> = ({ recipes, onMakeSale, isReadonly = 
               </div>
            </div>
            
-           <div className="relative group">
-              <input 
-                type="text" 
-                value={staffName} 
-                onChange={(e) => setStaffName(e.target.value)}
-                className="w-full pl-5 pr-12 py-4 bg-white border-2 border-slate-200 rounded-[1.5rem] outline-none focus:border-indigo-500 font-bold text-slate-700 text-sm shadow-inner transition-all"
-                placeholder="Personel İsmi..."
-              />
-              <div className="absolute right-5 top-1/2 -translate-y-1/2 bg-slate-100 p-1.5 rounded-lg text-slate-400">
-                <Plus size={16} strokeWidth={3} />
+           <div className="space-y-3">
+              <div className="relative group">
+                <input 
+                  type="text" 
+                  value={staffName} 
+                  onChange={(e) => setStaffName(e.target.value)}
+                  className="w-full pl-5 pr-12 py-4 bg-white border-2 border-slate-200 rounded-[1.5rem] outline-none focus:border-indigo-500 font-bold text-slate-700 text-sm shadow-inner transition-all"
+                  placeholder="Personel İsmi..."
+                />
+                <div className="absolute right-5 top-1/2 -translate-y-1/2 bg-slate-100 p-1.5 rounded-lg text-slate-400">
+                  <Plus size={16} strokeWidth={3} />
+                </div>
+              </div>
+
+              <div className="relative group">
+                <Calendar className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-600 transition-colors" size={18} />
+                <input 
+                  type="date" 
+                  value={saleDate} 
+                  onChange={(e) => setSaleDate(e.target.value)}
+                  className="w-full pl-12 pr-5 py-4 bg-white border-2 border-slate-200 rounded-[1.5rem] outline-none focus:border-indigo-500 font-bold text-slate-700 text-sm shadow-inner transition-all"
+                />
               </div>
            </div>
         </div>

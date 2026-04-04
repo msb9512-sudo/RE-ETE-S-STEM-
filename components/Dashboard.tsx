@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState } from 'react';
-import { InventoryItem, Sale, Log } from '../types';
+import { InventoryItem, Sale, Log, Recipe } from '../types';
 import { analyzeStockAction } from '../services/geminiService';
 import { 
   AlertTriangle, 

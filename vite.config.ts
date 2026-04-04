@@ -16,18 +16,22 @@ export default defineConfig(({ mode }) => {
     base: './', // Elektron dosya sistemi için gerekli
     plugins: [
       react(),
-      electron([
-        {
-          entry: 'electron/main.ts',
-        },
-        {
-          entry: 'electron/preload.ts',
-          onstart(options) {
-            options.reload()
+      // AI Studio önizleme ortamında (dev) Electron eklentilerini devre dışı bırakıyoruz (GTK hatasını önlemek için).
+      // Build alırken (production) her zaman aktif olmalı.
+      ...(mode === 'development' && process.env.DISABLE_HMR ? [] : [
+        electron([
+          {
+            entry: 'electron/main.ts',
           },
-        },
+          {
+            entry: 'electron/preload.ts',
+            onstart(options) {
+              options.reload()
+            },
+          },
+        ]),
+        renderer(),
       ]),
-      renderer(),
     ],
     define: {
       'process.env.API_KEY': JSON.stringify(env.API_KEY),

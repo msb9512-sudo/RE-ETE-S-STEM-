@@ -1,6 +1,6 @@
 
-import React from 'react';
-import { CountSession, StockMovement, StockMovementType, InventoryItem, Sale, Recipe } from '../types';
+import React, { useState, useMemo } from 'react';
+import { CountSession, StockMovement, StockMovementType, InventoryItem, Sale, Recipe, Unit } from '../types';
 import { 
   BarChart3, 
   TrendingDown, 
@@ -16,7 +16,8 @@ import {
   Layers,
   Activity,
   Award,
-  Wallet
+  Wallet,
+  Calendar
 } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
@@ -32,39 +33,94 @@ interface ReportsProps {
 }
 
 export const Reports: React.FC<ReportsProps> = ({ countSessions, movements, inventory, sales, recipes }) => {
-  const hasData = sales.length > 0 || movements.length > 0 || countSessions.length > 0;
+  const [selectedMonth, setSelectedMonth] = useState<string>(new Date().toISOString().slice(0, 7)); // YYYY-MM format
+
+  const filteredData = useMemo(() => {
+    const [year, month] = selectedMonth.split('-').map(Number);
+    
+    const filteredSales = sales.filter(s => {
+      const date = new Date(s.timestamp);
+      return date.getFullYear() === year && (date.getMonth() + 1) === month;
+    });
+
+    const filteredMovements = movements.filter(m => {
+      const date = new Date(m.timestamp);
+      return date.getFullYear() === year && (date.getMonth() + 1) === month;
+    });
+
+    const filteredCountSessions = countSessions.filter(cs => {
+      const date = new Date(cs.date);
+      return date.getFullYear() === year && (date.getMonth() + 1) === month;
+    });
+
+    return {
+      sales: filteredSales,
+      movements: filteredMovements,
+      countSessions: filteredCountSessions
+    };
+  }, [selectedMonth, sales, movements, countSessions]);
+
+  const hasData = filteredData.sales.length > 0 || filteredData.movements.length > 0 || filteredData.countSessions.length > 0;
 
   if (!hasData) {
     return (
-      <div className="flex flex-col items-center justify-center h-full text-center space-y-6 animate-fade-in p-12">
-        <div className="relative">
-          <div className="absolute -inset-8 bg-indigo-500/10 rounded-full blur-3xl animate-pulse"></div>
-          <div className="relative bg-white p-10 rounded-full shadow-2xl border border-slate-100">
-            <FileBarChart size={100} className="text-indigo-200" />
+      <div className="space-y-10 animate-fade-in pb-12">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
+          <div>
+            <h2 className="text-4xl font-black text-slate-800 tracking-tighter flex items-center gap-4">
+              <div className="bg-indigo-600 p-2.5 rounded-2xl text-white shadow-xl shadow-indigo-200">
+                <Activity size={32} />
+              </div>
+              Yönetim Analitiği
+            </h2>
+            <p className="text-slate-500 font-semibold mt-1">İşletmenizin finansal röntgeni ve depo sağlığı.</p>
+          </div>
+          <div className="flex items-center gap-3 bg-white p-2 rounded-2xl border border-slate-100 shadow-sm">
+            <Calendar size={18} className="text-indigo-600 ml-2" />
+            <input 
+              type="month" 
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              className="outline-none font-black text-slate-700 bg-transparent px-2 py-1"
+            />
           </div>
         </div>
-        <h2 className="text-4xl font-black text-slate-800 tracking-tight">Veri Analizi Bekleniyor</h2>
-        <p className="text-slate-500 max-w-md mx-auto mt-4 text-lg font-medium">
-          Raporlarınızın oluşması için en az bir satış veya sayım kaydı gereklidir.
-        </p>
+
+        <div className="flex flex-col items-center justify-center h-full text-center space-y-6 animate-fade-in p-12 bg-white rounded-[3rem] border border-slate-100">
+          <div className="relative">
+            <div className="absolute -inset-8 bg-indigo-500/10 rounded-full blur-3xl animate-pulse"></div>
+            <div className="relative bg-white p-10 rounded-full shadow-2xl border border-slate-100">
+              <FileBarChart size={100} className="text-indigo-200" />
+            </div>
+          </div>
+          <h2 className="text-4xl font-black text-slate-800 tracking-tight">Bu Ay İçin Veri Bulunamadı</h2>
+          <p className="text-slate-500 max-w-md mx-auto mt-4 text-lg font-medium">
+            Seçilen ay ({selectedMonth}) için henüz bir satış veya sayım kaydı mevcut değil.
+          </p>
+        </div>
       </div>
     );
   }
 
   // --- Hesaplamalar ---
-  // Fix: Explicitly cast totalPrice to number to ensure numeric addition in reduce.
-  const totalRevenue = sales.reduce((acc: number, s) => acc + (Number(s.totalPrice) || 0), 0);
-  // Fix: Explicitly cast inventory quantity and costPerUnit to numbers for safe arithmetic.
+  const totalRevenue = filteredData.sales.reduce((acc: number, s) => acc + (Number(s.totalPrice) || 0), 0);
   const totalStockValue = inventory.reduce((acc: number, item) => acc + (Number(item.quantity || 0) * Number(item.costPerUnit || 0)), 0);
   
-  // Reçete Maliyetleri üzerinden Brüt Kâr Tahmini
-  // Fix: Ensure cost and quantity operands are explicitly numbers during reduction.
-  const totalCostOfSales = sales.reduce((acc: number, sale) => {
+  const totalCostOfSales = filteredData.sales.reduce((acc: number, sale) => {
     const recipe = recipes.find(r => r.id === sale.recipeId);
     if (!recipe) return acc;
     const cost = recipe.ingredients.reduce((cAcc: number, ing) => {
       const item = inventory.find(i => i.id === ing.inventoryItemId);
-      return cAcc + (Number(ing.amount) * (Number(item?.costPerUnit) || 0));
+      if (!item) return cAcc;
+      
+      let factor = 1;
+      if (ing.unit === Unit.GRAM && item.unit === Unit.KG) factor = 0.001;
+      else if (ing.unit === Unit.KG && item.unit === Unit.GRAM) factor = 1000;
+      else if (ing.unit === Unit.MILLILITER && item.unit === Unit.LITER) factor = 0.001;
+      else if (ing.unit === Unit.CL && item.unit === Unit.LITER) factor = 0.01;
+      else if (ing.unit === Unit.LITER && item.unit === Unit.MILLILITER) factor = 1000;
+      
+      return cAcc + (Number(ing.amount) * factor * (Number(item.costPerUnit) || 0));
     }, 0);
     return acc + (cost * Number(sale.quantity));
   }, 0);
@@ -72,16 +128,12 @@ export const Reports: React.FC<ReportsProps> = ({ countSessions, movements, inve
   const grossProfit = totalRevenue - totalCostOfSales;
   const profitMargin = totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0;
 
-  // Sayım Farkı Analizi
-  // Fix: Ensure varianceCost is treated as a number in the reduction.
-  const totalVarianceCost = countSessions.reduce((acc: number, session) => {
+  const totalVarianceCost = filteredData.countSessions.reduce((acc: number, session) => {
     const sessionVariance = session.items.reduce((sAcc: number, item) => sAcc + (Number(item.varianceCost) || 0), 0);
     return acc + sessionVariance;
   }, 0);
 
-  // En Çok Satan 5 Ürün
-  // Fix: Guarantee numeric addition for sales trend tracking.
-  const salesByRecipe = sales.reduce((acc: Record<string, number>, s) => {
+  const salesByRecipe = filteredData.sales.reduce((acc: Record<string, number>, s) => {
     const name = recipes.find(r => r.id === s.recipeId)?.name || 'Bilinmeyen';
     const currentQty: number = Number(acc[name] || 0);
     acc[name] = currentQty + Number(s.quantity);
@@ -118,6 +170,15 @@ export const Reports: React.FC<ReportsProps> = ({ countSessions, movements, inve
             Yönetim Analitiği
           </h2>
           <p className="text-slate-500 font-semibold mt-1">İşletmenizin finansal röntgeni ve depo sağlığı.</p>
+        </div>
+        <div className="flex items-center gap-3 bg-white p-2 rounded-2xl border border-slate-100 shadow-sm">
+          <Calendar size={18} className="text-indigo-600 ml-2" />
+          <input 
+            type="month" 
+            value={selectedMonth}
+            onChange={(e) => setSelectedMonth(e.target.value)}
+            className="outline-none font-black text-slate-700 bg-transparent px-2 py-1"
+          />
         </div>
       </div>
 

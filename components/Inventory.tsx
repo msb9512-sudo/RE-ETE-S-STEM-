@@ -9,7 +9,7 @@ interface InventoryProps {
   onAddItem: (item: Omit<InventoryItem, 'id'>) => void;
   onUpdateItem: (id: string, updates: Partial<InventoryItem>) => void;
   onDeleteItem: (id: string) => void;
-  onStockAction: (itemId: string, type: StockMovementType, amount: number, reason: string) => void;
+  onStockAction: (itemId: string, type: StockMovementType, amount: number, reason: string, timestamp?: number) => void;
   onAddCategory: (name: string) => void;
   onDeleteCategory: (name: string) => void;
   isReadonly?: boolean;
@@ -68,10 +68,19 @@ export const Inventory: React.FC<InventoryProps> = ({ inventory, categories, onA
     if (isReadonly) return;
     const amountInput = document.getElementById('actionAmount') as HTMLInputElement;
     const reasonInput = document.getElementById('actionReason') as HTMLInputElement;
+    const dateInput = document.getElementById('actionDate') as HTMLInputElement;
     const amount = parseFloat(amountInput.value);
     const reason = reasonInput.value;
+    const date = dateInput.value;
+
     if (actionItem && amount > 0) {
-      onStockAction(actionItem.item.id, actionItem.type, amount, reason);
+      // Seçilen tarihi timestamp'e çevir
+      const selectedDate = new Date(date);
+      const now = new Date();
+      selectedDate.setHours(now.getHours(), now.getMinutes(), now.getSeconds());
+      const timestamp = selectedDate.getTime();
+
+      onStockAction(actionItem.item.id, actionItem.type, amount, reason, timestamp);
       setActionItem(null);
     }
   };
@@ -181,6 +190,10 @@ export const Inventory: React.FC<InventoryProps> = ({ inventory, categories, onA
           <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-8 border border-slate-200">
              <h3 className="text-xl font-black text-slate-800 mb-4">{actionItem.type} İşlemi</h3>
              <form onSubmit={handleActionSubmit} className="space-y-4">
+               <div>
+                 <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-1 block">Tarih</label>
+                 <input id="actionDate" type="date" defaultValue={new Date().toISOString().split('T')[0]} required className="w-full border-2 border-slate-100 p-3 rounded-xl bg-slate-50 text-slate-900 font-bold focus:border-indigo-500 outline-none transition-all" />
+               </div>
                <div>
                  <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-1 block">Miktar ({actionItem.item.unit})</label>
                  <input id="actionAmount" type="number" step="0.01" required className="w-full border-2 border-slate-100 p-3 rounded-xl bg-slate-50 text-slate-900 font-bold focus:border-indigo-500 outline-none transition-all" autoFocus />
