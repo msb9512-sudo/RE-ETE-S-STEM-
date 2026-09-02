@@ -82,6 +82,23 @@ export const Login: React.FC<LoginProps> = ({ users, onLogin, onRegister, onRese
           <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3.5 rounded-xl shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2">
             Giriş Yap <ArrowRight size={18} />
           </button>
+
+          <div className="pt-1">
+            <button
+              type="button"
+              onClick={() => {
+                setUsername("admin");
+                setPassword("123");
+                const adminUser = users.find(u => u.username.toLowerCase() === 'admin');
+                if (adminUser) {
+                  onLogin(adminUser);
+                }
+              }}
+              className="w-full bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold py-2.5 px-4 rounded-xl transition-all flex items-center justify-center gap-2 border border-indigo-200 cursor-pointer"
+            >
+              <span>⚡ Hızlı Yönetici Girişi (admin / 123)</span>
+            </button>
+          </div>
         </form>
       </div>
     </div>

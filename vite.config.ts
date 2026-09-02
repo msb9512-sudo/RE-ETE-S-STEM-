@@ -11,14 +11,19 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
+  const isElectron = process.env.ELECTRON === 'true'
 
   return {
-    base: './', // Elektron dosya sistemi için gerekli
+    base: './',
+    server: {
+      port: 3000,
+      host: '0.0.0.0',
+    },
     plugins: [
       react(),
-      // AI Studio önizleme ortamında (dev) Electron eklentilerini devre dışı bırakıyoruz (GTK hatasını önlemek için).
-      // Build alırken (production) her zaman aktif olmalı.
-      ...(mode === 'development' && process.env.DISABLE_HMR ? [] : [
+      // Electron eklentileri sadece masaüstü paketlemede (ELECTRON=true) çalışır.
+      // Web önizleme ortamında ESM çakışmalarını ve importmap hatalarını önlemek için devre dışı bırakılır.
+      ...(isElectron ? [
         electron([
           {
             entry: 'electron/main.ts',
@@ -31,7 +36,7 @@ export default defineConfig(({ mode }) => {
           },
         ]),
         renderer(),
-      ]),
+      ] : []),
     ],
     define: {
       'process.env.API_KEY': JSON.stringify(env.API_KEY),

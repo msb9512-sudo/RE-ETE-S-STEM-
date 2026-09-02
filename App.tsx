@@ -15,7 +15,7 @@ import { Settings } from './components/Settings';
 import { ImportExport } from './components/ImportExport';
 import { InventoryItem, Recipe, Sale, ViewState, Log, StockMovement, CountSession, StockMovementType, Role, Order, User, LicenseData, Unit, Category } from './types';
 import { INITIAL_INVENTORY, INITIAL_RECIPES, INITIAL_USERS } from './constants';
-import { verifyLicenseKey, checkRemoteLicenseStatus } from './services/licenseService';
+import { verifyLicenseKey, checkRemoteLicenseStatus, generateLicenseKey } from './services/licenseService';
 import { Hotel } from 'lucide-react';
 
 /**
@@ -169,8 +169,24 @@ const App: React.FC = () => {
         setIsLicensed(result.isValid);
         setLicenseExpired(result.isExpired || false);
       } else {
-        // Lisans verisi yoksa direkt aktivasyona
-        setIsLicensed(false);
+        // Web / Önizleme ortamındaysa otomatik demo lisansı başlat ve kilidi kaldır
+        if (!window.ipcRenderer) {
+          const webMachineId = 'WEB-PREVIEW-' + Math.floor(1000 + Math.random() * 9000);
+          const demoKey = generateLicenseKey(webMachineId, 365);
+          const newLicense: LicenseData = {
+            key: demoKey,
+            machineId: webMachineId,
+            activatedAt: Date.now(),
+            clientName: 'Demo / Önizleme Kullanıcısı',
+            expirationDate: Date.now() + 365 * 24 * 60 * 60 * 1000
+          };
+          setLicense(newLicense);
+          setIsLicensed(true);
+          setLicenseExpired(false);
+        } else {
+          // Masaüstü Electron uygulamasında lisans verisi yoksa aktivasyona yönlendir
+          setIsLicensed(false);
+        }
       }
       setLicenseChecked(true);
     };

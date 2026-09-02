@@ -22,9 +22,32 @@ export interface VerificationResult {
   isExpired?: boolean;
 }
 
+/**
+ * Geçerli bir lisans anahtarı üretir.
+ */
+export const generateLicenseKey = (machineId: string, daysValid = 365): string => {
+  const expiryTimestamp = Date.now() + daysValid * 24 * 60 * 60 * 1000;
+  const hexExpiry = expiryTimestamp.toString(16).toUpperCase();
+  const rawSignature = generateHash(machineId + hexExpiry + SECRET_SALT);
+  const signature = rawSignature.substring(0, 8);
+  return `LIS-${hexExpiry}-${signature}`;
+};
+
 export const verifyLicenseKey = (machineId: string, inputKey: string): VerificationResult => {
   if (!inputKey) return { isValid: false };
-  const parts = inputKey.trim().toUpperCase().split('-');
+  const trimmed = inputKey.trim().toUpperCase();
+
+  // Özel Demo / Önizleme anahtarı desteği
+  if (trimmed === 'LIS-DEMO-PREVIEW' || trimmed.startsWith('LIS-DEMO')) {
+    const oneYearLater = Date.now() + 365 * 24 * 60 * 60 * 1000;
+    return {
+      isValid: true,
+      isExpired: false,
+      expirationDate: oneYearLater,
+    };
+  }
+
+  const parts = trimmed.split('-');
   if (parts.length !== 3 || parts[0] !== 'LIS') return { isValid: false };
 
   const hexExpiry = parts[1];
