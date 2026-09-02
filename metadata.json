@@ -1,6 +1,5 @@
 {
-  "name": "OtelPro",
-  "description": "Profesyonel Otel ve Kafe Yönetim Sistemi, Stok ve Satış Takip Platformu",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "name": "Hotel Pro",
+  "description": "Profesyonel Otel ve Kafe Yönetim Sistemi",
+  "requestFramePermissions": []
 }

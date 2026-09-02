@@ -13,9 +13,10 @@ import { Reports } from './components/Reports';
 import { Purchasing } from './components/Purchasing';
 import { Settings } from './components/Settings';
 import { ImportExport } from './components/ImportExport';
-import { InventoryItem, Recipe, Sale, ViewState, Log, StockMovement, CountSession, StockMovementType, Role, Order, User, LicenseData, Unit, Category } from './types';
+import { InventoryItem, Recipe, Sale, ViewState, Log, StockMovement, CountSession, StockMovementType, Role, Order, User, LicenseData, Unit, Category, CompanyStamp } from './types';
 import { INITIAL_INVENTORY, INITIAL_RECIPES, INITIAL_USERS } from './constants';
-import { verifyLicenseKey, checkRemoteLicenseStatus, generateLicenseKey } from './services/licenseService';
+import { verifyLicenseKey, checkRemoteLicenseStatus } from './services/licenseService';
+import { loadUIPreferences, applyUIPreferences } from './services/themeService';
 import { Hotel } from 'lucide-react';
 
 /**
@@ -97,10 +98,32 @@ const App: React.FC = () => {
   const [countSessions, setCountSessions, isCountsLoaded, countsError] = usePersistentState<CountSession[]>('countSessions', []);
   const [orders, setOrders, isOrdersLoaded, ordersError] = usePersistentState<Order[]>('orders', []);
   const [reportEmails, setReportEmails, isEmailsLoaded, emailsError] = usePersistentState<string[]>('reportEmails', []);
+  const [companyStamp, setCompanyStamp, isStampLoaded, stampError] = usePersistentState<CompanyStamp>('companyStamp', {
+    businessName: 'OtelPro',
+    legalTitle: '',
+    taxOffice: '',
+    taxNumber: '',
+    address: '',
+    phone: '',
+    email: '',
+    authorizedPerson: '',
+    stampNote: ''
+  });
+
+  const appName = companyStamp?.businessName?.trim() || 'OtelPro';
+
+  useEffect(() => {
+    const prefs = loadUIPreferences();
+    applyUIPreferences(prefs);
+  }, []);
+
+  useEffect(() => {
+    document.title = `${appName} - Stok & İşletme Sistemi`;
+  }, [appName]);
 
   const allErrors = [
     licenseError, usersError, inventoryError, categoriesError, recipesError, 
-    salesError, logsError, movementsError, countsError, ordersError, emailsError
+    salesError, logsError, movementsError, countsError, ordersError, emailsError, stampError
   ].filter(Boolean) as string[];
 
   const handleUpdateLicense = useCallback((newKey: string) => {
@@ -169,24 +192,8 @@ const App: React.FC = () => {
         setIsLicensed(result.isValid);
         setLicenseExpired(result.isExpired || false);
       } else {
-        // Web / Önizleme ortamındaysa otomatik demo lisansı başlat ve kilidi kaldır
-        if (!window.ipcRenderer) {
-          const webMachineId = 'WEB-PREVIEW-' + Math.floor(1000 + Math.random() * 9000);
-          const demoKey = generateLicenseKey(webMachineId, 365);
-          const newLicense: LicenseData = {
-            key: demoKey,
-            machineId: webMachineId,
-            activatedAt: Date.now(),
-            clientName: 'Demo / Önizleme Kullanıcısı',
-            expirationDate: Date.now() + 365 * 24 * 60 * 60 * 1000
-          };
-          setLicense(newLicense);
-          setIsLicensed(true);
-          setLicenseExpired(false);
-        } else {
-          // Masaüstü Electron uygulamasında lisans verisi yoksa aktivasyona yönlendir
-          setIsLicensed(false);
-        }
+        // Lisans verisi yoksa direkt aktivasyona
+        setIsLicensed(false);
       }
       setLicenseChecked(true);
     };
@@ -218,6 +225,14 @@ const App: React.FC = () => {
 
   const handleDeleteUser = (userId: string) => {
     setUsers(prev => prev.filter(u => u.id !== userId));
+  };
+
+  const handleAddUser = (newUser: Omit<User, 'id'>) => {
+    const userWithId: User = {
+      ...newUser,
+      id: Date.now().toString()
+    };
+    setUsers(prev => [...prev, userWithId]);
   };
 
   const handleUpdateProfile = (userId: string, updates: Partial<User>) => {
@@ -361,7 +376,7 @@ const App: React.FC = () => {
           <Hotel size={56} />
         </div>
         <div className="text-center">
-          <h1 className="text-3xl font-black tracking-tighter">OtelPro Hazırlanıyor</h1>
+          <h1 className="text-3xl font-black tracking-tighter">{appName} Hazırlanıyor</h1>
           <p className="text-indigo-300 text-xs font-black uppercase tracking-[0.3em] mt-2 animate-pulse">Veri Bağlantısı Kuruluyor</p>
         </div>
       </div>
@@ -396,13 +411,14 @@ const App: React.FC = () => {
         onLogin={handleLogin} 
         onRegister={(u) => setUsers([...users, {...u, id: Date.now().toString(), role: Role.PENDING}])} 
         onResetPassword={(id, p) => setUsers(users.map(u => u.id === id ? {...u, password: p} : u))} 
+        appName={appName}
       />
     );
   }
 
   // Ana Uygulama
   return (
-    <Layout currentView={view} onChangeView={setView} currentUser={currentUser} onLogout={handleLogout} licenseExpired={licenseExpired}>
+    <Layout currentView={view} onChangeView={setView} currentUser={currentUser} onLogout={handleLogout} licenseExpired={licenseExpired} appName={appName}>
       {allErrors.length > 0 && (
         <div className="bg-red-600 text-white p-4 mb-6 rounded-2xl shadow-lg animate-pulse flex flex-col gap-2">
           <div className="flex items-center gap-2 font-black uppercase tracking-widest text-sm">
@@ -426,7 +442,7 @@ const App: React.FC = () => {
       {view === 'counting' && <Counting inventory={inventory} onSaveCount={handleSaveCount} isReadonly={licenseExpired} />}
       {view === 'purchasing' && <Purchasing inventory={inventory} userRole={currentUser.role} orders={orders} onCreateOrder={handleCreateOrder} onReceiveOrder={handleReceiveOrder} isReadonly={licenseExpired} />}
       {view === 'reports' && <Reports countSessions={countSessions} movements={movements} inventory={inventory} sales={sales} recipes={recipes} />}
-      {['settings', 'report-settings'].includes(view) && <Settings currentView={view} users={users} inventory={inventory} sales={sales} countSessions={countSessions} reportEmails={reportEmails} onUpdateEmails={setReportEmails} onUpdateRole={handleUpdateRole} onDeleteUser={handleDeleteUser} onUpdateProfile={handleUpdateProfile} onUpdateLicense={handleUpdateLicense} currentUser={currentUser} licenseData={license} isReadonly={licenseExpired} />}
+      {['settings', 'stamp-settings', 'report-settings', 'ui-settings'].includes(view) && <Settings currentView={view} users={users} inventory={inventory} sales={sales} countSessions={countSessions} reportEmails={reportEmails} onUpdateEmails={setReportEmails} onUpdateRole={handleUpdateRole} onDeleteUser={handleDeleteUser} onAddUser={handleAddUser} onUpdateProfile={handleUpdateProfile} onUpdateLicense={handleUpdateLicense} currentUser={currentUser} licenseData={license} isReadonly={licenseExpired} companyStamp={companyStamp} onUpdateCompanyStamp={setCompanyStamp} />}
       {view === 'import-export' && <ImportExport inventory={inventory} onBatchAddInventory={handleBatchAddInventory} onBatchAddRecipes={handleBatchAddRecipes} isReadonly={licenseExpired} />}
     </Layout>
   );

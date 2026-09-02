@@ -131,7 +131,35 @@ export interface LicenseData {
   expirationDate: number; 
 }
 
-export type ViewState = 'dashboard' | 'inventory' | 'bar' | 'recipes' | 'sales' | 'sales-calendar' | 'counting' | 'reports' | 'purchasing' | 'settings' | 'report-settings' | 'import-export';
+export interface CompanyStamp {
+  businessName: string; // İşletme / Firma Adı (Programın ismini OtelPro yerine bu isim yapar)
+  legalTitle?: string; // Ticari Unvan
+  taxOffice?: string; // Vergi Dairesi
+  taxNumber?: string; // Vergi Numarası / Mersis
+  address?: string; // Adres
+  phone?: string; // Telefon
+  email?: string; // E-posta
+  authorizedPerson?: string; // Yetkili Kişi
+  stampNote?: string; // Kaşe Notu / Ek Bilgi
+}
+
+export type ViewState = 'dashboard' | 'inventory' | 'bar' | 'recipes' | 'sales' | 'sales-calendar' | 'counting' | 'reports' | 'purchasing' | 'settings' | 'stamp-settings' | 'report-settings' | 'ui-settings' | 'import-export';
+
+export type ThemeColor = 'indigo' | 'emerald' | 'ocean' | 'amber' | 'rose' | 'slate' | 'dark';
+export type FontFamily = 'inter' | 'jakarta' | 'outfit' | 'montserrat' | 'poppins' | 'roboto';
+export type ShapeRadius = 'sharp' | 'standard' | 'soft' | 'pill';
+export type InterfaceDensity = 'compact' | 'normal' | 'spacious';
+export type CardStyle = 'shadow' | 'border' | 'glass' | 'contrast';
+
+export interface UIPreferences {
+  theme: ThemeColor;
+  font: FontFamily;
+  radius: ShapeRadius;
+  density: InterfaceDensity;
+  cardStyle: CardStyle;
+  enableAnimations: boolean;
+  fontSize: 'compact' | 'normal' | 'large';
+}
 
 declare global {
   interface Window {

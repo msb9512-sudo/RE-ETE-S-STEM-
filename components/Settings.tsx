@@ -1,10 +1,11 @@
 
-import React, { useState } from 'react';
-import { User, Role, LicenseData, InventoryItem, Sale, CountSession, ViewState } from '../types';
-import { Settings as SettingsIcon, Trash2, Shield, AlertTriangle, X, UserCog, Save, BadgeCheck, Copy, CheckCircle, Mail, Send, Loader2, MailCheck, ExternalLink, Users, Download, Info, Activity, FileText } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { User, Role, LicenseData, InventoryItem, Sale, CountSession, ViewState, CompanyStamp } from '../types';
+import { Settings as SettingsIcon, Trash2, Shield, AlertTriangle, X, UserCog, Save, BadgeCheck, Copy, CheckCircle, Mail, Send, Loader2, MailCheck, ExternalLink, Users, Download, Info, Activity, FileText, Stamp, Building2, CheckCircle2, UserPlus, Search, KeyRound, Eye, EyeOff, UserCheck, ShieldAlert } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { GoogleGenAI } from "@google/genai";
+import { UISettings } from './UISettings';
 
 interface SettingsProps {
   users: User[];
@@ -15,12 +16,15 @@ interface SettingsProps {
   onUpdateEmails: (emails: string[]) => void;
   onUpdateRole: (userId: string, newRole: Role) => void;
   onDeleteUser: (userId: string) => void;
+  onAddUser?: (user: Omit<User, 'id'>) => void;
   onUpdateProfile: (userId: string, updates: Partial<User>) => void;
   onUpdateLicense?: (newKey: string) => boolean;
   currentUser: User;
   licenseData?: LicenseData | null;
   isReadonly?: boolean;
   currentView?: ViewState;
+  companyStamp?: CompanyStamp;
+  onUpdateCompanyStamp?: (stamp: CompanyStamp) => void;
 }
 
 const SECURITY_QUESTIONS = [
@@ -46,8 +50,9 @@ const trClean = (text: string) => {
 
 export const Settings: React.FC<SettingsProps> = ({ 
   users, inventory, sales, countSessions, reportEmails = [], 
-  onUpdateEmails, onUpdateRole, onDeleteUser, onUpdateProfile, onUpdateLicense, 
-  currentUser, licenseData, isReadonly = false, currentView = 'settings'
+  onUpdateEmails, onUpdateRole, onDeleteUser, onAddUser, onUpdateProfile, onUpdateLicense, 
+  currentUser, licenseData, isReadonly = false, currentView = 'settings',
+  companyStamp, onUpdateCompanyStamp
 }) => {
   const [copiedId, setCopiedId] = useState(false);
   const [newPassword, setNewPassword] = useState("");
@@ -57,7 +62,72 @@ export const Settings: React.FC<SettingsProps> = ({
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const [newEmail, setNewEmail] = useState("");
 
+  const [stampData, setStampData] = useState<CompanyStamp>({
+    businessName: companyStamp?.businessName || 'OtelPro',
+    legalTitle: companyStamp?.legalTitle || '',
+    taxOffice: companyStamp?.taxOffice || '',
+    taxNumber: companyStamp?.taxNumber || '',
+    address: companyStamp?.address || '',
+    phone: companyStamp?.phone || '',
+    email: companyStamp?.email || '',
+    authorizedPerson: companyStamp?.authorizedPerson || '',
+    stampNote: companyStamp?.stampNote || ''
+  });
+  const [stampSavedNotice, setStampSavedNotice] = useState(false);
+
+  // Yeni Üye Ekleme State'leri
+  const [showAddUserModal, setShowAddUserModal] = useState(false);
+  const [newUserName, setNewUserName] = useState("");
+  const [newUserUsername, setNewUserUsername] = useState("");
+  const [newUserPassword, setNewUserPassword] = useState("");
+  const [showNewUserPassword, setShowNewUserPassword] = useState(false);
+  const [newUserRole, setNewUserRole] = useState<Role>(Role.WAITER);
+  const [newUserSecurityQuestion, setNewUserSecurityQuestion] = useState(SECURITY_QUESTIONS[0]);
+  const [newUserSecurityAnswer, setNewUserSecurityAnswer] = useState("");
+  const [userAddError, setUserAddError] = useState<string | null>(null);
+  const [userAddSuccess, setUserAddSuccess] = useState<string | null>(null);
+
+  // Üye Listesi Arama / Filtreleme
+  const [searchMember, setSearchMember] = useState("");
+
+  // Üye Şifresini Yönetici Olarak Güncelleme
+  const [resetPassUser, setResetPassUser] = useState<User | null>(null);
+  const [adminResetNewPass, setAdminResetNewPass] = useState("");
+  const [showAdminResetPass, setShowAdminResetPass] = useState(false);
+  const [resetPassSuccess, setResetPassSuccess] = useState(false);
+  const [resetPassError, setResetPassError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (companyStamp) {
+      setStampData({
+        businessName: companyStamp.businessName || '',
+        legalTitle: companyStamp.legalTitle || '',
+        taxOffice: companyStamp.taxOffice || '',
+        taxNumber: companyStamp.taxNumber || '',
+        address: companyStamp.address || '',
+        phone: companyStamp.phone || '',
+        email: companyStamp.email || '',
+        authorizedPerson: companyStamp.authorizedPerson || '',
+        stampNote: companyStamp.stampNote || ''
+      });
+    }
+  }, [companyStamp]);
+
+  const handleSaveStamp = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isReadonly) return;
+    if (onUpdateCompanyStamp) {
+      onUpdateCompanyStamp(stampData);
+      setStampSavedNotice(true);
+      setTimeout(() => setStampSavedNotice(false), 3000);
+    }
+  };
+
+  const appDisplayName = stampData.businessName?.trim() || companyStamp?.businessName?.trim() || "OtelPro";
+
   const isReportView = currentView === 'report-settings';
+  const isStampView = currentView === 'stamp-settings';
+  const isUIView = currentView === 'ui-settings';
 
   const prepareFullReport = async () => {
     const totalRev = sales.reduce((a, s) => a + s.totalPrice, 0);
@@ -84,10 +154,15 @@ export const Settings: React.FC<SettingsProps> = ({
     doc.setFillColor(15, 23, 42); 
     doc.rect(0, 0, 210, 60, 'F');
     doc.setTextColor(255, 255, 255);
-    doc.setFontSize(26);
-    doc.text(trClean("OTELPRO ISLETME DENETIM RAPORU"), 20, 35);
+    doc.setFontSize(22);
+    doc.text(trClean(`${appDisplayName.toUpperCase()} DENETIM VE ANALIZ RAPORU`), 20, 35);
     doc.setFontSize(10);
-    doc.text(trClean(`OLUSTURMA: ${timestamp} | YONETICI: ${currentUser.name}`), 20, 48);
+    doc.text(trClean(`OLUSTURMA: ${timestamp} | YONETICI: ${currentUser.name}`), 20, 46);
+    if (stampData.legalTitle || stampData.taxNumber) {
+      doc.setFontSize(8);
+      doc.setTextColor(203, 213, 225);
+      doc.text(trClean(`${stampData.legalTitle || ''} ${stampData.taxOffice ? '| VD: ' + stampData.taxOffice : ''} ${stampData.taxNumber ? '| VN: ' + stampData.taxNumber : ''}`), 20, 54);
+    }
 
     // AI ÖZETİ
     doc.setTextColor(0, 0, 0);
@@ -158,7 +233,7 @@ export const Settings: React.FC<SettingsProps> = ({
       doc.setPage(i);
       doc.setFontSize(8);
       doc.setTextColor(150);
-      doc.text(trClean(`OtelPro Kurumsal Raporu - Sayfa ${i}/${pages}`), 105, 290, { align: 'center' });
+      doc.text(trClean(`${appDisplayName} Kurumsal Raporu - Sayfa ${i}/${pages}`), 105, 290, { align: 'center' });
     }
 
     return doc;
@@ -168,7 +243,8 @@ export const Settings: React.FC<SettingsProps> = ({
     setIsGeneratingReport(true);
     try {
       const doc = await prepareFullReport();
-      doc.save(`OtelPro_Analiz_Raporu_${Date.now()}.pdf`);
+      const safeFileName = appDisplayName.replace(/[^a-zA-Z0-9]/g, '_');
+      doc.save(`${safeFileName}_Analiz_Raporu_${Date.now()}.pdf`);
     } catch (err) {
       alert("Hata: " + err);
     } finally {
@@ -187,13 +263,14 @@ export const Settings: React.FC<SettingsProps> = ({
     try {
       // 1. Önce PDF'i indir
       const doc = await prepareFullReport();
-      doc.save(`OtelPro_Gonderilecek_Rapor.pdf`);
+      const safeFileName = appDisplayName.replace(/[^a-zA-Z0-9]/g, '_');
+      doc.save(`${safeFileName}_Gonderilecek_Rapor.pdf`);
 
       // 2. Outlook/Varsayılan Mail İstemcisini Aç
       const recipients = reportEmails.join(',');
-      const subject = encodeURIComponent("OtelPro İşletme Analiz Raporu");
+      const subject = encodeURIComponent(`${appDisplayName} İşletme Analiz Raporu`);
       const body = encodeURIComponent(
-        `Sayın Yönetici,\n\nİşletmenizin güncel depo ve satış analiz raporu oluşturulmuştur. Pdfiniz ektedir. İyi Çalışmalar dilerim.\n\n\nTarih: ${new Date().toLocaleString('tr-TR')}\nOtelPro Otomasyon Sistemi`
+        `Sayın Yetkili,\n\n${appDisplayName} işletmesine ait güncel depo ve satış analiz raporu oluşturulmuştur. Pdfiniz ektedir. İyi çalışmalar dileriz.\n\n\nTarih: ${new Date().toLocaleString('tr-TR')}\n${appDisplayName} Yönetim Sistemi`
       );
 
       window.location.href = `mailto:${recipients}?subject=${subject}&body=${body}`;
@@ -218,6 +295,372 @@ export const Settings: React.FC<SettingsProps> = ({
     setNewAnswer("");
     alert("Profil bilgileri başarıyla güncellendi.");
   };
+
+  const generateRandomPassword = () => {
+    const chars = "23456789abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ";
+    let pass = "";
+    for (let i = 0; i < 6; i++) {
+      pass += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    setNewUserPassword(pass);
+    setShowNewUserPassword(true);
+  };
+
+  const handleCreateMember = (e: React.FormEvent) => {
+    e.preventDefault();
+    setUserAddError(null);
+
+    const trimmedName = newUserName.trim();
+    const trimmedUsername = newUserUsername.trim().toLowerCase();
+    const trimmedPassword = newUserPassword.trim();
+
+    if (!trimmedName) {
+      setUserAddError("Lütfen personelin adını ve soyadını girin.");
+      return;
+    }
+
+    if (!trimmedUsername) {
+      setUserAddError("Lütfen bir kullanıcı adı belirleyin.");
+      return;
+    }
+
+    if (trimmedUsername.length < 3) {
+      setUserAddError("Kullanıcı adı en az 3 karakter olmalıdır.");
+      return;
+    }
+
+    // Benzersiz kullanıcı adı kontrolü
+    const isTaken = users.some(u => u.username.toLowerCase() === trimmedUsername);
+    if (isTaken) {
+      setUserAddError(`"${trimmedUsername}" kullanıcı adı zaten kayıtlı. Lütfen farklı bir kullanıcı adı seçin.`);
+      return;
+    }
+
+    if (!trimmedPassword) {
+      setUserAddError("Lütfen personele bir giriş şifresi tanımlayın.");
+      return;
+    }
+
+    if (trimmedPassword.length < 4) {
+      setUserAddError("Şifre en az 4 karakter olmalıdır.");
+      return;
+    }
+
+    if (onAddUser) {
+      onAddUser({
+        name: trimmedName,
+        username: trimmedUsername,
+        password: trimmedPassword,
+        role: newUserRole,
+        securityQuestion: newUserSecurityQuestion || SECURITY_QUESTIONS[0],
+        securityAnswer: newUserSecurityAnswer.trim().toLowerCase() || 'otel'
+      });
+    }
+
+    setUserAddSuccess(`"${trimmedName}" personeli (${newUserRole}) olarak başarıyla eklendi.`);
+    setShowAddUserModal(false);
+    setNewUserName("");
+    setNewUserUsername("");
+    setNewUserPassword("");
+    setNewUserSecurityAnswer("");
+    setShowNewUserPassword(false);
+    setTimeout(() => setUserAddSuccess(null), 4000);
+  };
+
+  const handleDeleteMemberConfirm = (user: User) => {
+    if (user.id === currentUser.id) {
+      alert("Kendi oturum açmış hesabınızı silemezsiniz.");
+      return;
+    }
+    if (window.confirm(`"${user.name}" (${user.username}) isimli personeli silmek istediğinize emin misiniz? Bu işlem geri alınamaz.`)) {
+      onDeleteUser(user.id);
+    }
+  };
+
+  const handleAdminResetPasswordSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!resetPassUser) return;
+    if (!adminResetNewPass.trim() || adminResetNewPass.trim().length < 4) {
+      setResetPassError("Şifre en az 4 karakter olmalıdır.");
+      return;
+    }
+    onUpdateProfile(resetPassUser.id, { password: adminResetNewPass.trim() });
+    setResetPassSuccess(true);
+    setResetPassError(null);
+    setTimeout(() => {
+      setResetPassSuccess(false);
+      setShowAdminResetPass(false);
+      setResetPassUser(null);
+      setAdminResetNewPass("");
+    }, 1500);
+  };
+
+  if (isUIView) {
+    return <UISettings isReadonly={isReadonly} />;
+  }
+
+  if (isStampView) {
+    return (
+      <div className="space-y-6 animate-fade-in pb-20">
+        <div className="flex flex-wrap justify-between items-center gap-4">
+          <div>
+            <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2.5">
+              <Stamp className="text-indigo-600" size={28} /> Kaşe Bilgisi
+            </h2>
+            <p className="text-xs text-slate-500 font-medium mt-1">
+              İşletme resmi kaşe ve ticari bilgilerinizi buradan yönetebilirsiniz. 
+              Tanımladığınız işletme adı programın ana ismi olarak kullanılır.
+            </p>
+          </div>
+          <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-indigo-50 text-indigo-700 rounded-xl text-xs font-bold border border-indigo-200">
+            <Building2 size={15} />
+            Program İsmi & Resmi Kaşe
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Sol Kolon: Kaşe ve İşletme Formu */}
+          <div className="lg:col-span-2 space-y-6">
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+              <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-slate-50 to-white">
+                <div className="flex items-center gap-2.5">
+                  <div className="bg-indigo-600 text-white p-2 rounded-xl shadow-md shadow-indigo-200">
+                    <Stamp size={20}/>
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-slate-800 text-base">İşletme ve Kaşe Bilgileri</h3>
+                    <p className="text-xs text-slate-500 font-medium">Resmi evrak ve raporlarda yer alacak bilgiler</p>
+                  </div>
+                </div>
+              </div>
+
+              <form onSubmit={handleSaveStamp} className="p-6 md:p-8 space-y-6">
+                {/* Bilgi Kutusu */}
+                <div className="bg-gradient-to-r from-indigo-50/80 to-blue-50/80 border border-indigo-100 p-4 rounded-xl flex items-start gap-3">
+                  <Info size={18} className="text-indigo-600 shrink-0 mt-0.5" />
+                  <p className="text-xs text-indigo-950 font-medium leading-relaxed">
+                    <strong className="font-bold text-indigo-900">Program İsmi Değişimi: </strong>
+                    Aşağıdaki <span className="underline decoration-indigo-400 font-bold">İşletme / Firma Adı</span> alanına yazdığınız isim, 
+                    programın sol menüsündeki logosunda, giriş ekranında ve raporlarda <strong>"OtelPro"</strong> ibaresinin yerine geçer.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                   <div className="md:col-span-2">
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-xs font-black text-slate-700 uppercase tracking-wider">
+                          İşletme / Firma Adı (Program Başlığı) <span className="text-red-500">*</span>
+                        </label>
+                        <span className="text-[11px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">
+                          Program İsmi Olur
+                        </span>
+                      </div>
+                      <input 
+                        type="text" 
+                        required
+                        value={stampData.businessName} 
+                        onChange={e => setStampData({...stampData, businessName: e.target.value})} 
+                        placeholder="Örn: Grand Hotel & Restoran veya Çınar Cafe" 
+                        className="w-full px-4 py-3 border-2 border-indigo-200 focus:border-indigo-600 rounded-xl outline-none font-bold text-slate-800 bg-white transition-all shadow-sm text-base"
+                      />
+                   </div>
+
+                   <div>
+                      <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Resmi Ticari Unvan</label>
+                      <input 
+                        type="text" 
+                        value={stampData.legalTitle || ''} 
+                        onChange={e => setStampData({...stampData, legalTitle: e.target.value})} 
+                        placeholder="Örn: ABC Turizm Otelcilik Tic. Ltd. Şti." 
+                        className="w-full px-4 py-2.5 border rounded-xl outline-none focus:border-indigo-500 text-sm"
+                      />
+                   </div>
+
+                   <div>
+                      <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Yetkili / İmza Sahibi</label>
+                      <input 
+                        type="text" 
+                        value={stampData.authorizedPerson || ''} 
+                        onChange={e => setStampData({...stampData, authorizedPerson: e.target.value})} 
+                        placeholder="Örn: Ahmet Yılmaz" 
+                        className="w-full px-4 py-2.5 border rounded-xl outline-none focus:border-indigo-500 text-sm"
+                      />
+                   </div>
+
+                   <div>
+                      <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Vergi Dairesi</label>
+                      <input 
+                        type="text" 
+                        value={stampData.taxOffice || ''} 
+                        onChange={e => setStampData({...stampData, taxOffice: e.target.value})} 
+                        placeholder="Örn: Kadıköy V.D." 
+                        className="w-full px-4 py-2.5 border rounded-xl outline-none focus:border-indigo-500 text-sm"
+                      />
+                   </div>
+
+                   <div>
+                      <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Vergi No / MERSİS No</label>
+                      <input 
+                        type="text" 
+                        value={stampData.taxNumber || ''} 
+                        onChange={e => setStampData({...stampData, taxNumber: e.target.value})} 
+                        placeholder="Örn: 1234567890" 
+                        className="w-full px-4 py-2.5 border rounded-xl outline-none focus:border-indigo-500 text-sm"
+                      />
+                   </div>
+
+                   <div>
+                      <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Telefon / İletişim</label>
+                      <input 
+                        type="text" 
+                        value={stampData.phone || ''} 
+                        onChange={e => setStampData({...stampData, phone: e.target.value})} 
+                        placeholder="Örn: 0212 444 0 123" 
+                        className="w-full px-4 py-2.5 border rounded-xl outline-none focus:border-indigo-500 text-sm"
+                      />
+                   </div>
+
+                   <div>
+                      <label className="block text-xs font-bold text-slate-600 uppercase mb-1">E-Posta Adresi</label>
+                      <input 
+                        type="email" 
+                        value={stampData.email || ''} 
+                        onChange={e => setStampData({...stampData, email: e.target.value})} 
+                        placeholder="Örn: info@isletme.com" 
+                        className="w-full px-4 py-2.5 border rounded-xl outline-none focus:border-indigo-500 text-sm"
+                      />
+                   </div>
+
+                   <div className="md:col-span-2">
+                      <label className="block text-xs font-bold text-slate-600 uppercase mb-1">İşletme Açık Adresi</label>
+                      <textarea 
+                        rows={2}
+                        value={stampData.address || ''} 
+                        onChange={e => setStampData({...stampData, address: e.target.value})} 
+                        placeholder="Örn: Sahil Cad. No:45 Beşiktaş / İstanbul" 
+                        className="w-full px-4 py-2.5 border rounded-xl outline-none focus:border-indigo-500 text-sm resize-none"
+                      />
+                   </div>
+
+                   <div className="md:col-span-2">
+                      <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Kaşe Notu / Ek Bilgi (İsteğe Bağlı)</label>
+                      <input 
+                        type="text" 
+                        value={stampData.stampNote || ''} 
+                        onChange={e => setStampData({...stampData, stampNote: e.target.value})} 
+                        placeholder="Örn: Ticaret Sicil No: 123456 / Mersis: 0123456789" 
+                        className="w-full px-4 py-2.5 border rounded-xl outline-none focus:border-indigo-500 text-sm"
+                      />
+                   </div>
+                </div>
+
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-slate-100">
+                   <div>
+                     {stampSavedNotice && (
+                       <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-600 bg-emerald-50 px-3.5 py-2 rounded-lg border border-emerald-200 animate-fade-in">
+                         <CheckCircle2 size={16} /> Kaşe bilgileri kaydedildi ve program ismi güncellendi!
+                       </span>
+                     )}
+                   </div>
+                   <button 
+                     type="submit" 
+                     disabled={isReadonly}
+                     className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-3.5 rounded-xl font-black text-sm flex items-center justify-center gap-2.5 transition-all shadow-lg shadow-indigo-200 active:scale-95 disabled:opacity-50"
+                   >
+                     <Save size={18} /> Kaşe Bilgilerini Kaydet
+                   </button>
+                </div>
+              </form>
+            </div>
+          </div>
+
+          {/* Sağ Kolon: Canlı Kaşe ve Bilgilendirme */}
+          <div className="space-y-6">
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <h4 className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                  <Stamp size={16} className="text-indigo-600" />
+                  Canlı Dijital Kaşe
+                </h4>
+                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider bg-slate-100 px-2 py-0.5 rounded">
+                  Önizleme
+                </span>
+              </div>
+
+              <div className="relative border-2 border-dashed border-indigo-400/80 bg-gradient-to-br from-indigo-50/70 via-slate-50 to-blue-50/60 p-6 rounded-2xl text-center select-none shadow-inner overflow-hidden">
+                 <div className="absolute top-2 right-3 text-[9px] font-black uppercase tracking-widest text-indigo-400 bg-white/90 px-2 py-0.5 rounded-full border border-indigo-100 shadow-xs">
+                   DİJİTAL KAŞE
+                 </div>
+                 <div className="space-y-1.5 text-indigo-950 font-serif">
+                    <h4 className="text-base font-black tracking-wider uppercase text-indigo-900 font-sans leading-tight">
+                      {stampData.businessName?.trim() || 'İŞLETME / FİRMA ADI'}
+                    </h4>
+                    {stampData.legalTitle && (
+                      <p className="text-xs font-bold text-indigo-800">
+                        {stampData.legalTitle}
+                      </p>
+                    )}
+                    <div className="text-[11px] text-indigo-700/90 font-sans font-medium space-y-1 pt-1 border-t border-indigo-200/50">
+                      {(stampData.taxOffice || stampData.taxNumber) && (
+                        <p>
+                          {stampData.taxOffice ? `${stampData.taxOffice} V.D.` : ''} {stampData.taxNumber ? `| V.No: ${stampData.taxNumber}` : ''}
+                        </p>
+                      )}
+                      {stampData.address && (
+                        <p className="text-[10px] text-slate-600 leading-tight">{stampData.address}</p>
+                      )}
+                      <p className="text-[10px]">
+                        {stampData.phone ? `Tel: ${stampData.phone}` : ''} 
+                        {stampData.email ? ` | ${stampData.email}` : ''} 
+                      </p>
+                      {stampData.authorizedPerson && (
+                        <p className="text-[10px] font-bold text-indigo-900">
+                          Yetkili: {stampData.authorizedPerson}
+                        </p>
+                      )}
+                      {stampData.stampNote && (
+                        <p className="text-[9px] text-indigo-500 italic">{stampData.stampNote}</p>
+                      )}
+                    </div>
+                 </div>
+              </div>
+              <p className="text-[11px] text-slate-400 text-center font-medium">
+                Bu kaşe görünümü sistem raporlarında ve resmi evraklarda kullanılır.
+              </p>
+            </div>
+
+            <div className="bg-slate-900 text-white p-6 rounded-2xl shadow-xl space-y-3">
+              <div className="flex items-center gap-2 text-indigo-400 font-bold text-sm">
+                <Building2 size={18} />
+                <span>Program İsmi Değişimi</span>
+              </div>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                İşletme adınızı kaydettiğinizde aşağıdaki alanlar anında güncellenir:
+              </p>
+              <ul className="text-xs text-slate-400 space-y-2 pt-1 font-medium">
+                <li className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-400"></span>
+                  Sol menüdeki ana logo ve başlık
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-400"></span>
+                  Kullanıcı giriş ekranı başlığı
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-400"></span>
+                  Tarayıcı sekme başlığı
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-400"></span>
+                  Oluşturulan PDF denetim ve analiz raporları
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (isReportView) {
     return (
@@ -347,45 +790,162 @@ export const Settings: React.FC<SettingsProps> = ({
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-             <div className="p-6 border-b border-slate-100">
-               <h3 className="font-bold text-slate-800 flex items-center gap-2"><Users size={20}/> Personel Yönetimi</h3>
+             <div className="p-6 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+               <div>
+                 <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                   <Users size={20} className="text-indigo-600"/> Personel & Üye Yönetimi
+                 </h3>
+                 <p className="text-xs text-slate-500 mt-0.5">
+                   Sistemde kayıtlı toplam <span className="font-semibold text-slate-700">{users.length}</span> personel bulunmaktadır
+                 </p>
+               </div>
+               
+               <div className="flex flex-wrap items-center gap-3">
+                 <div className="relative flex-1 sm:flex-initial">
+                   <Search className="absolute left-3 top-2.5 text-slate-400" size={15} />
+                   <input 
+                     type="text" 
+                     placeholder="İsim, kullanıcı adı ara..." 
+                     value={searchMember}
+                     onChange={e => setSearchMember(e.target.value)}
+                     className="w-full sm:w-52 pl-9 pr-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 focus:bg-white transition-all"
+                   />
+                 </div>
+
+                 <button
+                   type="button"
+                   disabled={isReadonly}
+                   onClick={() => {
+                     setUserAddError(null);
+                     setNewUserName("");
+                     setNewUserUsername("");
+                     setNewUserPassword("");
+                     setNewUserSecurityAnswer("");
+                     setShowNewUserPassword(false);
+                     setShowAddUserModal(true);
+                   }}
+                   className="flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-md shadow-indigo-200 transition-all active:scale-95 disabled:opacity-50 shrink-0"
+                 >
+                   <UserPlus size={16} /> Yeni Üye Ekle
+                 </button>
+               </div>
              </div>
+
+             {userAddSuccess && (
+               <div className="mx-6 mt-4 p-3.5 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold rounded-xl flex items-center gap-2.5 animate-fade-in">
+                 <CheckCircle2 size={18} className="text-emerald-600 shrink-0" />
+                 <span>{userAddSuccess}</span>
+               </div>
+             )}
+
              <div className="overflow-x-auto">
                <table className="w-full text-left">
                  <thead className="bg-slate-50 text-slate-500 text-xs uppercase font-bold tracking-wider">
                    <tr>
-                     <th className="px-6 py-4">İsim</th>
+                     <th className="px-6 py-4">Personel</th>
                      <th className="px-6 py-4">Kullanıcı Adı</th>
-                     <th className="px-6 py-4">Yetki</th>
-                     <th className="px-6 py-4 text-center">İşlem</th>
+                     <th className="px-6 py-4">Yetki / Rol</th>
+                     <th className="px-6 py-4 text-center">İşlemler</th>
                    </tr>
                  </thead>
                  <tbody className="divide-y divide-slate-100">
-                   {users.map(user => (
-                     <tr key={user.id} className="hover:bg-slate-50 transition-colors">
-                       <td className="px-6 py-4 font-medium">{user.name}</td>
-                       <td className="px-6 py-4 text-slate-500 font-mono text-xs">{user.username}</td>
-                       <td className="px-6 py-4">
-                          <select 
-                            value={user.role}
-                            disabled={isReadonly || user.id === currentUser.id}
-                            onChange={(e) => onUpdateRole(user.id, e.target.value as Role)}
-                            className="border rounded-lg px-2 py-1 text-xs bg-white focus:border-indigo-500"
-                          >
-                            {Object.values(Role).map(role => <option key={role} value={role}>{role}</option>)}
-                          </select>
-                       </td>
-                       <td className="px-6 py-4 text-center">
-                          {user.id !== currentUser.id && (
-                            <button onClick={() => onDeleteUser(user.id)} className="text-red-500 hover:bg-red-50 p-2 rounded-lg transition-colors"><Trash2 size={18} /></button>
-                          )}
-                       </td>
-                     </tr>
-                   ))}
+                   {users
+                     .filter(u => {
+                       if (!searchMember.trim()) return true;
+                       const q = searchMember.toLowerCase().trim();
+                       return (
+                         u.name.toLowerCase().includes(q) ||
+                         u.username.toLowerCase().includes(q) ||
+                         u.role.toLowerCase().includes(q)
+                       );
+                     })
+                     .map(user => {
+                       const isCurrent = user.id === currentUser.id;
+                       return (
+                         <tr key={user.id} className="hover:bg-slate-50 transition-colors">
+                           <td className="px-6 py-4">
+                             <div className="flex items-center gap-3">
+                               <div className="w-9 h-9 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-700 font-bold flex items-center justify-center text-xs shadow-xs">
+                                 {user.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() || 'U'}
+                               </div>
+                               <div>
+                                 <div className="font-semibold text-slate-800 text-sm flex items-center gap-2">
+                                   {user.name}
+                                   {isCurrent && (
+                                     <span className="text-[10px] bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-bold">
+                                       Siz
+                                     </span>
+                                   )}
+                                 </div>
+                               </div>
+                             </div>
+                           </td>
+                           <td className="px-6 py-4">
+                             <span className="text-slate-600 font-mono text-xs bg-slate-100 px-2 py-1 rounded-lg">
+                               @{user.username}
+                             </span>
+                           </td>
+                           <td className="px-6 py-4">
+                              <select 
+                                value={user.role}
+                                disabled={isReadonly || isCurrent}
+                                onChange={(e) => onUpdateRole(user.id, e.target.value as Role)}
+                                className={`border rounded-xl px-3 py-1.5 text-xs font-semibold outline-none transition-all ${
+                                  user.role === Role.ADMIN 
+                                    ? 'bg-purple-50 border-purple-200 text-purple-700 focus:border-purple-400'
+                                    : user.role === Role.CHEF 
+                                    ? 'bg-amber-50 border-amber-200 text-amber-700 focus:border-amber-400'
+                                    : user.role === Role.BAR_MANAGER 
+                                    ? 'bg-blue-50 border-blue-200 text-blue-700 focus:border-blue-400'
+                                    : user.role === Role.WAITER 
+                                    ? 'bg-emerald-50 border-emerald-200 text-emerald-700 focus:border-emerald-400'
+                                    : 'bg-slate-50 border-slate-200 text-slate-700 focus:border-slate-400'
+                                }`}
+                              >
+                                {Object.values(Role).map(role => <option key={role} value={role}>{role}</option>)}
+                              </select>
+                           </td>
+                           <td className="px-6 py-4">
+                              <div className="flex items-center justify-center gap-1">
+                                <button
+                                  type="button"
+                                  title="Şifreyi Değiştir / Sıfırla"
+                                  onClick={() => {
+                                    setResetPassUser(user);
+                                    setAdminResetNewPass("");
+                                    setResetPassError(null);
+                                    setResetPassSuccess(false);
+                                    setShowAdminResetPass(true);
+                                  }}
+                                  className="text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 p-2 rounded-lg transition-colors"
+                                >
+                                  <KeyRound size={17} />
+                                </button>
+                                {!isCurrent && (
+                                  <button 
+                                    type="button"
+                                    title="Personeli Sil"
+                                    onClick={() => handleDeleteMemberConfirm(user)} 
+                                    className="text-red-500 hover:bg-red-50 p-2 rounded-lg transition-colors"
+                                  >
+                                    <Trash2 size={17} />
+                                  </button>
+                                )}
+                              </div>
+                           </td>
+                         </tr>
+                       );
+                     })}
                  </tbody>
                </table>
+               {users.length === 0 && (
+                 <div className="p-8 text-center text-slate-400 text-xs font-medium">
+                   Henüz sisteme eklenmiş bir personel bulunmuyor.
+                 </div>
+               )}
              </div>
           </div>
+
 
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
              <div className="p-6 border-b border-slate-100">
@@ -436,6 +996,244 @@ export const Settings: React.FC<SettingsProps> = ({
            </div>
         </div>
       </div>
+
+      {/* Yeni Üye Ekle Modal */}
+      {showAddUserModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 overflow-y-auto animate-fade-in">
+          <div className="bg-white rounded-3xl max-w-lg w-full shadow-2xl border border-slate-100 overflow-hidden animate-scale-up my-8">
+            <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-indigo-50/50 to-white">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-indigo-600 text-white flex items-center justify-center shadow-lg shadow-indigo-200">
+                  <UserPlus size={20} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-800 text-lg">Yeni Üye / Personel Ekle</h3>
+                  <p className="text-xs text-slate-500">Sisteme erişebilecek yeni personel hesabı oluşturun</p>
+                </div>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setShowAddUserModal(false)}
+                className="text-slate-400 hover:text-slate-600 p-2 hover:bg-slate-100 rounded-xl transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateMember} className="p-6 space-y-4">
+              {userAddError && (
+                <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl flex items-center gap-2 font-medium">
+                  <AlertTriangle size={16} className="shrink-0 text-red-500" />
+                  <span>{userAddError}</span>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">
+                  Ad Soyad <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={newUserName}
+                  onChange={e => setNewUserName(e.target.value)}
+                  placeholder="Örn: Ahmet Yılmaz"
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:border-indigo-500 focus:bg-white transition-all"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">
+                  Kullanıcı Adı (Giriş için) <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3.5 top-2.5 text-slate-400 font-mono text-sm">@</span>
+                  <input
+                    type="text"
+                    required
+                    value={newUserUsername}
+                    onChange={e => setNewUserUsername(e.target.value.replace(/\s+/g, ''))}
+                    placeholder="ahmetyilmaz"
+                    className="w-full pl-8 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono outline-none focus:border-indigo-500 focus:bg-white transition-all"
+                  />
+                </div>
+                <p className="text-[11px] text-slate-400 mt-1">Giriş yaparken kullanılır. Boşluk içermez.</p>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider">
+                    Giriş Şifresi <span className="text-red-500">*</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={generateRandomPassword}
+                    className="text-xs text-indigo-600 hover:text-indigo-700 font-semibold flex items-center gap-1 transition-colors"
+                  >
+                    Rastgele Şifre Üret
+                  </button>
+                </div>
+                <div className="relative">
+                  <input
+                    type={showNewUserPassword ? "text" : "password"}
+                    required
+                    value={newUserPassword}
+                    onChange={e => setNewUserPassword(e.target.value)}
+                    placeholder="En az 4 karakter"
+                    className="w-full px-4 pr-11 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono outline-none focus:border-indigo-500 focus:bg-white transition-all"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowNewUserPassword(!showNewUserPassword)}
+                    className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 p-0.5 rounded transition-colors"
+                  >
+                    {showNewUserPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">
+                  Yetki / Görev Rolü <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={newUserRole}
+                  onChange={e => setNewUserRole(e.target.value as Role)}
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold outline-none focus:border-indigo-500 focus:bg-white transition-all"
+                >
+                  <option value={Role.ADMIN}>Yönetici (Tam Yetkili)</option>
+                  <option value={Role.CHEF}>Mutfak Şefi</option>
+                  <option value={Role.BAR_MANAGER}>Bar Şefi</option>
+                  <option value={Role.WAITER}>Garson</option>
+                  <option value={Role.PENDING}>Onay Bekliyor</option>
+                </select>
+                <div className="mt-2 p-2.5 rounded-xl bg-slate-50 border border-slate-100 text-[11px] text-slate-500 leading-relaxed">
+                  {newUserRole === Role.ADMIN && "👑 Yönetici: Stok, reçeteler, satışlar, sayımlar, raporlar ve tüm sistem ayarlarına tam erişim hakkına sahiptir."}
+                  {newUserRole === Role.CHEF && "👨‍🍳 Mutfak Şefi: Reçeteleri inceleme/oluşturma, stok hareketlerini takip etme ve sipariş yönetimine erişebilir."}
+                  {newUserRole === Role.BAR_MANAGER && "🍸 Bar Şefi: Bar stokları, içecek reçeteleri ve satış hareketlerine erişebilir."}
+                  {newUserRole === Role.WAITER && "🍽️ Garson: Yalnızca adisyon, masa siparişleri ve hızlı satış terminaline erişebilir."}
+                  {newUserRole === Role.PENDING && "⏳ Onay Bekliyor: Yönetici onay verene kadar sisteme giriş yapamaz."}
+                </div>
+              </div>
+
+              <div className="pt-2 border-t border-slate-100 space-y-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">
+                    Güvenlik Sorusu (Şifre kurtarma için)
+                  </label>
+                  <select
+                    value={newUserSecurityQuestion}
+                    onChange={e => setNewUserSecurityQuestion(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:border-indigo-500 focus:bg-white transition-all"
+                  >
+                    {SECURITY_QUESTIONS.map(q => <option key={q} value={q}>{q}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">
+                    Güvenlik Sorusu Cevabı
+                  </label>
+                  <input
+                    type="text"
+                    value={newUserSecurityAnswer}
+                    onChange={e => setNewUserSecurityAnswer(e.target.value)}
+                    placeholder="Cevap girin (varsayılan: otel)"
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:border-indigo-500 focus:bg-white transition-all"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowAddUserModal(false)}
+                  className="px-5 py-2.5 rounded-xl text-slate-600 hover:bg-slate-100 text-xs font-bold transition-all"
+                >
+                  İptal
+                </button>
+                <button
+                  type="submit"
+                  className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold flex items-center gap-2 shadow-lg shadow-indigo-200 transition-all active:scale-95"
+                >
+                  <UserCheck size={16} /> Personeli Kaydet
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Yönetici Şifre Sıfırlama Modal */}
+      {showAdminResetPass && resetPassUser && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-slate-100 overflow-hidden animate-scale-up">
+            <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center">
+                  <KeyRound size={20} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-800 text-base">Personel Şifresini Belirle</h3>
+                  <p className="text-xs text-slate-500">{resetPassUser.name} (@{resetPassUser.username})</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => { setShowAdminResetPass(false); setResetPassUser(null); }}
+                className="text-slate-400 hover:text-slate-600 p-2 hover:bg-slate-100 rounded-xl transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleAdminResetPasswordSubmit} className="p-6 space-y-4">
+              {resetPassSuccess && (
+                <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold rounded-xl flex items-center gap-2">
+                  <CheckCircle2 size={16} className="text-emerald-600" />
+                  Şifre başarıyla güncellendi!
+                </div>
+              )}
+              {resetPassError && (
+                <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs font-semibold rounded-xl flex items-center gap-2">
+                  <AlertTriangle size={16} className="text-red-500" />
+                  {resetPassError}
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">
+                  Yeni Şifre Belirleyin
+                </label>
+                <input
+                  type="text"
+                  required
+                  autoFocus
+                  value={adminResetNewPass}
+                  onChange={e => setAdminResetNewPass(e.target.value)}
+                  placeholder="Yeni şifre girin (en az 4 karakter)"
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono outline-none focus:border-indigo-500 focus:bg-white transition-all"
+                />
+              </div>
+
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => { setShowAdminResetPass(false); setResetPassUser(null); }}
+                  className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 text-xs font-bold transition-all"
+                >
+                  İptal
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md transition-all active:scale-95"
+                >
+                  Şifreyi Güncelle
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

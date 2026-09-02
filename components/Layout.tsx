@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { ViewState, Role } from '../types';
-import { LayoutDashboard, Package, ScrollText, TrendingUp, Hotel, ClipboardCheck, BarChart3, ShoppingBag, LogOut, Settings as SettingsIcon, ChevronDown, ChevronRight, Users, Database, PanelLeftClose, PanelLeftOpen, ShieldAlert, MailCheck, CalendarDays } from 'lucide-react';
+import { LayoutDashboard, Package, ScrollText, TrendingUp, Hotel, ClipboardCheck, BarChart3, ShoppingBag, LogOut, Settings as SettingsIcon, ChevronDown, ChevronRight, Users, Database, PanelLeftClose, PanelLeftOpen, ShieldAlert, MailCheck, CalendarDays, Stamp, Palette } from 'lucide-react';
 
 interface LayoutProps {
   currentView: ViewState;
@@ -10,11 +10,14 @@ interface LayoutProps {
   currentUser: { role: Role; name: string } | null;
   onLogout: () => void;
   licenseExpired?: boolean;
+  appName?: string;
 }
 
-export const Layout: React.FC<LayoutProps> = ({ currentView, onChangeView, children, currentUser, onLogout, licenseExpired }) => {
-  const [isSettingsOpen, setIsSettingsOpen] = useState(['settings', 'report-settings', 'import-export'].includes(currentView));
+export const Layout: React.FC<LayoutProps> = ({ currentView, onChangeView, children, currentUser, onLogout, licenseExpired, appName }) => {
+  const [isSettingsOpen, setIsSettingsOpen] = useState(['settings', 'stamp-settings', 'report-settings', 'ui-settings', 'import-export'].includes(currentView));
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+
+  const displayName = appName?.trim() || "OtelPro";
 
   const menuItems = [
     { id: 'dashboard', label: 'Genel Panel', icon: <LayoutDashboard size={20} />, roles: [Role.ADMIN, Role.CHEF, Role.BAR_MANAGER] },
@@ -41,11 +44,15 @@ export const Layout: React.FC<LayoutProps> = ({ currentView, onChangeView, child
       >
         <div className={`p-4 h-20 flex items-center ${isSidebarCollapsed ? 'justify-center' : 'justify-between'} border-b border-slate-800`}>
           {!isSidebarCollapsed && (
-            <div className="flex items-center gap-3 animate-fade-in">
-              <div className="bg-indigo-600 p-2 rounded-xl text-white shadow-lg shadow-indigo-500/20"><Hotel size={24} /></div>
-              <div>
-                <h1 className="font-black text-white text-lg tracking-tight">OtelPro</h1>
-                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Enterprise</p>
+            <div className="flex items-center gap-3 animate-fade-in min-w-0 flex-1 mr-2">
+              <div className="bg-indigo-600 p-2 rounded-xl text-white shadow-lg shadow-indigo-500/20 shrink-0"><Hotel size={24} /></div>
+              <div className="min-w-0 flex-1">
+                <h1 className="font-black text-white text-base tracking-tight truncate" title={displayName}>
+                  {displayName}
+                </h1>
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest truncate">
+                  Enterprise
+                </p>
               </div>
             </div>
           )}
@@ -86,8 +93,14 @@ export const Layout: React.FC<LayoutProps> = ({ currentView, onChangeView, child
                   <button onClick={() => onChangeView('settings')} className={`w-full flex items-center gap-3 px-4 py-2 rounded-lg text-sm ${currentView === 'settings' ? 'text-indigo-400 bg-slate-800 font-bold' : 'text-slate-400 hover:text-white'}`}>
                     <Users size={16} /> Üyeler
                   </button>
+                  <button onClick={() => onChangeView('stamp-settings')} className={`w-full flex items-center gap-3 px-4 py-2 rounded-lg text-sm ${currentView === 'stamp-settings' ? 'text-indigo-400 bg-slate-800 font-bold' : 'text-slate-400 hover:text-white'}`}>
+                    <Stamp size={16} /> Kaşe Bilgisi
+                  </button>
                   <button onClick={() => onChangeView('report-settings')} className={`w-full flex items-center gap-3 px-4 py-2 rounded-lg text-sm ${currentView === 'report-settings' ? 'text-indigo-400 bg-slate-800 font-bold' : 'text-slate-400 hover:text-white'}`}>
                     <MailCheck size={16} /> Rapor Ayarları
+                  </button>
+                  <button onClick={() => onChangeView('ui-settings')} className={`w-full flex items-center gap-3 px-4 py-2 rounded-lg text-sm ${currentView === 'ui-settings' ? 'text-indigo-400 bg-slate-800 font-bold' : 'text-slate-400 hover:text-white'}`}>
+                    <Palette size={16} /> Arayüz
                   </button>
                   <button onClick={() => onChangeView('import-export')} className={`w-full flex items-center gap-3 px-4 py-2 rounded-lg text-sm ${currentView === 'import-export' ? 'text-indigo-400 bg-slate-800 font-bold' : 'text-slate-400 hover:text-white'}`}>
                     <Database size={16} /> Veri Merkezi
