@@ -1,5 +1,5 @@
 
-import { app, BrowserWindow, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, shell, Notification } from 'electron'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import process from 'node:process'
@@ -92,6 +92,39 @@ ipcMain.handle('get-machine-id', () => {
     console.error("Machine ID Error:", error);
     return "GENERIC-ID-0000";
   }
+});
+
+// --- ELECTRON NATIVE NOTIFICATION HANDLER ---
+ipcMain.handle('show-native-notification', async (_event, options: { title: string; body: string; silent?: boolean; urgency?: 'normal' | 'critical' | 'low' }) => {
+  try {
+    if (Notification.isSupported()) {
+      const notif = new Notification({
+        title: options.title,
+        body: options.body,
+        silent: options.silent ?? false,
+        urgency: options.urgency ?? 'normal'
+      });
+      
+      notif.on('click', () => {
+        if (win) {
+          if (win.isMinimized()) win.restore();
+          win.show();
+          win.focus();
+        }
+      });
+      
+      notif.show();
+      return { success: true };
+    }
+    return { success: false, reason: 'NOT_SUPPORTED' };
+  } catch (err) {
+    console.error("Native notification error:", err);
+    return { success: false, error: String(err) };
+  }
+});
+
+ipcMain.handle('is-native-notification-supported', () => {
+  return Notification.isSupported();
 });
 
 // ---------------------------------

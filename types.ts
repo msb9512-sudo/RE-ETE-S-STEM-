@@ -143,6 +143,30 @@ export interface CompanyStamp {
   stampNote?: string; // Kaşe Notu / Ek Bilgi
 }
 
+export type NotificationType = 'critical_stock' | 'license' | 'counting_variance' | 'system';
+
+export interface AppNotification {
+  id: string;
+  type: NotificationType;
+  title: string;
+  message: string;
+  timestamp: number;
+  read: boolean;
+  severity: 'critical' | 'warning' | 'info';
+  targetView?: ViewState;
+  metadata?: Record<string, any>;
+}
+
+export interface NotificationSettings {
+  enableNative: boolean; // Masaüstü / Electron native bildirimleri
+  enableAudio: boolean;  // Sesli uyarılar
+  enableToasts: boolean; // Uygulama içi bildirim pencereleri
+  criticalStockAlert: boolean; // Kritik stok uyarısı
+  licenseAlert: boolean; // Lisans uyarısı
+  countingVarianceAlert: boolean; // Sayım farkı uyarısı
+  varianceThreshold: number; // Fark maliyeti eşiği (TL)
+}
+
 export type ViewState = 'dashboard' | 'inventory' | 'bar' | 'recipes' | 'sales' | 'sales-calendar' | 'counting' | 'reports' | 'purchasing' | 'settings' | 'stamp-settings' | 'report-settings' | 'ui-settings' | 'import-export';
 
 export type ThemeColor = 'indigo' | 'emerald' | 'ocean' | 'amber' | 'rose' | 'slate' | 'dark';

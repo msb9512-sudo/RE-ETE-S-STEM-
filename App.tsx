@@ -17,6 +17,7 @@ import { InventoryItem, Recipe, Sale, ViewState, Log, StockMovement, CountSessio
 import { INITIAL_INVENTORY, INITIAL_RECIPES, INITIAL_USERS } from './constants';
 import { verifyLicenseKey, checkRemoteLicenseStatus } from './services/licenseService';
 import { loadUIPreferences, applyUIPreferences } from './services/themeService';
+import { NotificationService } from './services/notificationService';
 import { Hotel } from 'lucide-react';
 
 /**
@@ -216,6 +217,36 @@ const App: React.FC = () => {
     }
   }, [users, isUsersLoaded]);
 
+  // --- OTOMATİK BİLDİRİM VE NATIVE MASAÜSTÜ UYARI DENETİMLERİ ---
+  useEffect(() => {
+    if (!isInventoryLoaded) return;
+    NotificationService.checkCriticalStock(inventory);
+  }, [inventory, isInventoryLoaded]);
+
+  useEffect(() => {
+    if (!isLicenseLoaded) return;
+    NotificationService.checkLicenseStatus(license);
+  }, [license, isLicenseLoaded]);
+
+  useEffect(() => {
+    if (!isCountsLoaded) return;
+    NotificationService.checkCountingVariance(countSessions);
+  }, [countSessions, isCountsLoaded]);
+
+  // Periyodik Arka Plan Denetimi (Her 60 saniyede bir ekran fark etmeksizin denetler)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (isInventoryLoaded && inventory.length > 0) {
+        NotificationService.checkCriticalStock(inventory);
+      }
+      if (isLicenseLoaded && license) {
+        NotificationService.checkLicenseStatus(license);
+      }
+    }, 60000);
+
+    return () => clearInterval(interval);
+  }, [inventory, isInventoryLoaded, license, isLicenseLoaded]);
+
   const handleLogout = () => { setCurrentUser(null); localStorage.removeItem('currentUser'); };
   const handleLogin = (u: User) => { setCurrentUser(u); localStorage.setItem('currentUser', JSON.stringify(u)); };
 
@@ -327,6 +358,7 @@ const App: React.FC = () => {
         }
       });
       
+      NotificationService.checkCriticalStock(updatedInventory);
       return updatedInventory;
     });
   };
@@ -334,12 +366,16 @@ const App: React.FC = () => {
   const handleStockAction = (itemId: string, type: StockMovementType, amount: number, reason: string, customTimestamp?: number) => {
     if (licenseExpired) return;
     
-    setInventory(prev => prev.map(item => {
-      if (item.id === itemId) {
-        return { ...item, quantity: item.quantity - amount };
-      }
-      return item;
-    }));
+    setInventory(prev => {
+      const updated = prev.map(item => {
+        if (item.id === itemId) {
+          return { ...item, quantity: item.quantity - amount };
+        }
+        return item;
+      });
+      NotificationService.checkCriticalStock(updated);
+      return updated;
+    });
 
     const newMovement: StockMovement = {
       id: Date.now().toString() + Math.random().toString(36).substr(2, 4),
@@ -355,17 +391,116 @@ const App: React.FC = () => {
 
   const handleSaveCount = (session: CountSession) => {
     if (licenseExpired) return;
-    setCountSessions(prev => [...prev, session]);
+    setCountSessions(prev => {
+      const updated = [...prev, session];
+      NotificationService.checkCountingVariance(updated);
+      return updated;
+    });
     
     setInventory(prevInventory => {
-      return prevInventory.map(invItem => {
+      const updated = prevInventory.map(invItem => {
         const countedItem = session.items.find(si => si.inventoryItemId === invItem.id);
         if (countedItem) {
           return { ...invItem, quantity: countedItem.countedQuantity, lastCountDate: session.date };
         }
         return invItem;
       });
+      NotificationService.checkCriticalStock(updated);
+      return updated;
     });
+  };
+
+  const handleCorrectSale = (saleId: string, newQuantity: number, reason: string, adminName: string) => {
+    if (licenseExpired) return;
+
+    const existingSale = sales.find(s => s.id === saleId);
+    if (!existingSale) return;
+
+    const recipe = recipes.find(r => r.id === existingSale.recipeId);
+    const oldQuantity = existingSale.quantity;
+    const diffQuantity = newQuantity - oldQuantity;
+
+    // 1. Satış kaydını güncelle veya sil
+    if (newQuantity <= 0) {
+      setSales(prev => prev.filter(s => s.id !== saleId));
+    } else {
+      setSales(prev => prev.map(s => {
+        if (s.id === saleId) {
+          const unitPrice = recipe ? recipe.price : (s.totalPrice / oldQuantity);
+          return {
+            ...s,
+            quantity: newQuantity,
+            totalPrice: unitPrice * newQuantity
+          };
+        }
+        return s;
+      }));
+    }
+
+    // 2. Hammadde stok düzeltmesi (reçetedeki malzemeler)
+    if (recipe && recipe.ingredients && recipe.ingredients.length > 0 && diffQuantity !== 0) {
+      setInventory(prevInventory => {
+        const updatedInventory = [...prevInventory];
+
+        recipe.ingredients.forEach(ingredient => {
+          const itemIndex = updatedInventory.findIndex(i => i.id === ingredient.inventoryItemId);
+          if (itemIndex > -1) {
+            const item = updatedInventory[itemIndex];
+            let adjustment = ingredient.amount * diffQuantity;
+
+            if (ingredient.unit === Unit.GRAM && item.unit === Unit.KG) adjustment *= 0.001;
+            else if (ingredient.unit === Unit.MILLILITER && item.unit === Unit.LITER) adjustment *= 0.001;
+            else if (ingredient.unit === Unit.CL && item.unit === Unit.LITER) adjustment *= 0.01;
+            else if (ingredient.unit === Unit.KG && item.unit === Unit.GRAM) adjustment *= 1000;
+
+            updatedInventory[itemIndex] = {
+              ...item,
+              quantity: Math.max(0, item.quantity - adjustment)
+            };
+          }
+        });
+
+        NotificationService.checkCriticalStock(updatedInventory);
+        return updatedInventory;
+      });
+
+      // 3. Stok hareket kaydı ekle
+      recipe.ingredients.forEach(ingredient => {
+        let adjAmount = ingredient.amount * Math.abs(diffQuantity);
+        const invItem = inventory.find(i => i.id === ingredient.inventoryItemId);
+        if (!invItem) return;
+
+        if (ingredient.unit === Unit.GRAM && invItem.unit === Unit.KG) adjAmount *= 0.001;
+        else if (ingredient.unit === Unit.MILLILITER && invItem.unit === Unit.LITER) adjAmount *= 0.001;
+        else if (ingredient.unit === Unit.CL && invItem.unit === Unit.LITER) adjAmount *= 0.01;
+        else if (ingredient.unit === Unit.KG && invItem.unit === Unit.GRAM) adjAmount *= 1000;
+
+        const movement: StockMovement = {
+          id: Date.now().toString() + Math.random().toString(36).substr(2, 4),
+          inventoryItemId: ingredient.inventoryItemId,
+          type: StockMovementType.ADJUSTMENT,
+          amount: adjAmount,
+          reason: `Satış Düzeltme (${recipe.name} - ${adminName}): ${reason || 'Hatalı giriş düzeltildi'}`,
+          timestamp: Date.now(),
+          staffName: adminName
+        };
+        setMovements(prev => [movement, ...prev]);
+      });
+    }
+
+    // 4. Sistem günlüğüne (Logs) ekle
+    const actionDesc = newQuantity <= 0 ? 'İPTAL EDİLDİ' : `Miktar Düzeltildi (${oldQuantity} ➔ ${newQuantity})`;
+    const logMsg = `Satış Düzeltme: "${recipe?.name || 'Ürün'}" satışı ${adminName} tarafından ${actionDesc}. Neden: ${reason || 'Hatalı kayıt düzeltildi'}`;
+
+    setLogs(prev => [
+      {
+        id: Date.now().toString() + Math.random().toString(36).substr(2, 4),
+        timestamp: Date.now(),
+        message: logMsg,
+        type: 'warning'
+      },
+      ...prev
+    ]);
   };
 
   // Bekleme Ekranı: Tüm veriler (özellikle lisans) diskten yüklenene kadar gösterilir.
@@ -438,7 +573,15 @@ const App: React.FC = () => {
       {view === 'inventory' && <Inventory inventory={inventory} categories={categories} onAddItem={(i) => setInventory([...inventory, {...i, id: Date.now().toString()}])} onUpdateItem={(id, u) => setInventory(inventory.map(i => i.id === id ? {...i, ...u} : i))} onDeleteItem={(id) => setInventory(inventory.filter(i => i.id !== id))} onStockAction={handleStockAction} onAddCategory={(n) => setCategories([...categories, n])} onDeleteCategory={(n) => setCategories(categories.filter(c => c !== n))} isReadonly={licenseExpired} />}
       {view === 'recipes' && <Recipes recipes={recipes} inventory={inventory} categories={categories} onAddRecipe={(r) => setRecipes([...recipes, {...r, id: Date.now().toString()}])} onUpdateRecipe={(id, r) => setRecipes(recipes.map(rec => rec.id === id ? {...rec, ...r} : rec))} onDeleteRecipe={(id) => setRecipes(recipes.filter(r => r.id !== id))} isReadonly={licenseExpired} />}
       {view === 'sales' && <Sales recipes={recipes} onMakeSale={handleMakeSale} isReadonly={licenseExpired} />}
-      {view === 'sales-calendar' && <SalesCalendar sales={sales} recipes={recipes} />}
+      {view === 'sales-calendar' && (
+        <SalesCalendar 
+          sales={sales} 
+          recipes={recipes} 
+          users={users}
+          currentUser={currentUser}
+          onCorrectSale={handleCorrectSale}
+        />
+      )}
       {view === 'counting' && <Counting inventory={inventory} onSaveCount={handleSaveCount} isReadonly={licenseExpired} />}
       {view === 'purchasing' && <Purchasing inventory={inventory} userRole={currentUser.role} orders={orders} onCreateOrder={handleCreateOrder} onReceiveOrder={handleReceiveOrder} isReadonly={licenseExpired} />}
       {view === 'reports' && <Reports countSessions={countSessions} movements={movements} inventory={inventory} sales={sales} recipes={recipes} />}

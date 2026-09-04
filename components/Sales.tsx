@@ -59,8 +59,18 @@ export const Sales: React.FC<SalesProps> = ({ recipes, onMakeSale, isReadonly = 
     });
   };
 
+  const updateCartQty = (recipeId: string, newQty: number) => {
+    if (isReadonly) return;
+    if (isNaN(newQty) || newQty <= 0) {
+      setCart(prev => prev.filter(item => item.recipeId !== recipeId));
+    } else {
+      setCart(prev => prev.map(item => item.recipeId === recipeId ? { ...item, qty: Math.max(1, Math.floor(newQty)) } : item));
+    }
+  };
+
   const handleCompleteSale = () => {
-    if (isReadonly || cart.length === 0) return;
+    const validCart = cart.filter(item => item.qty > 0);
+    if (isReadonly || validCart.length === 0) return;
     
     // Seçilen tarihi timestamp'e çevir (Günün başlangıcı + şu anki saat/dakika/saniye)
     const selectedDate = new Date(saleDate);
@@ -68,7 +78,7 @@ export const Sales: React.FC<SalesProps> = ({ recipes, onMakeSale, isReadonly = 
     selectedDate.setHours(now.getHours(), now.getMinutes(), now.getSeconds());
     const timestamp = selectedDate.getTime();
 
-    cart.forEach(item => onMakeSale(item.recipeId, item.qty, staffName, timestamp));
+    validCart.forEach(item => onMakeSale(item.recipeId, item.qty, staffName, timestamp));
     setCart([]);
     setSuccessMsg(true);
     setTimeout(() => setSuccessMsg(false), 3000);
@@ -235,18 +245,52 @@ export const Sales: React.FC<SalesProps> = ({ recipes, onMakeSale, isReadonly = 
                     <p className="font-bold text-slate-800 text-sm leading-tight truncate">{recipe.name}</p>
                     <p className="text-[10px] text-slate-400 font-bold uppercase mt-0.5 tracking-wider">₺{recipe.price.toFixed(2)}</p>
                   </div>
-                  <div className="flex items-center gap-2 bg-white p-1 rounded-xl shadow-xs border border-slate-100 shrink-0">
+                  <div className="flex items-center gap-1.5 bg-white p-1 rounded-xl shadow-xs border border-slate-100 shrink-0">
                     <button 
                       onClick={() => removeFromCart(item.recipeId)} 
-                      className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                      disabled={isReadonly}
+                      className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all disabled:opacity-40"
                       title="Azalt"
                     >
                       <Minus size={14} strokeWidth={3} />
                     </button>
-                    <span className="font-bold text-slate-800 text-sm min-w-[20px] text-center">{item.qty}</span>
+
+                    <input 
+                      type="number"
+                      min="1"
+                      step="1"
+                      disabled={isReadonly}
+                      value={item.qty === 0 ? '' : item.qty}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === '') {
+                          setCart(prev => prev.map(i => i.recipeId === item.recipeId ? { ...i, qty: 0 } : i));
+                        } else {
+                          const parsed = parseInt(val, 10);
+                          if (!isNaN(parsed)) {
+                            setCart(prev => prev.map(i => i.recipeId === item.recipeId ? { ...i, qty: Math.max(0, parsed) } : i));
+                          }
+                        }
+                      }}
+                      onBlur={() => {
+                        if (item.qty <= 0) {
+                          updateCartQty(item.recipeId, 1);
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          (e.target as HTMLInputElement).blur();
+                        }
+                      }}
+                      onFocus={(e) => e.target.select()}
+                      className="w-12 h-8 text-center font-bold text-slate-800 text-sm bg-slate-50 hover:bg-slate-100 focus:bg-white border border-slate-200 focus:border-indigo-500 rounded-lg outline-none transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      title="Miktarı manuel yazmak için tıklayın veya düzenleyin"
+                    />
+
                     <button 
                       onClick={() => addToCart(item.recipeId)} 
-                      className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                      disabled={isReadonly}
+                      className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all disabled:opacity-40"
                       title="Arttır"
                     >
                       <Plus size={14} strokeWidth={3} />
@@ -265,7 +309,7 @@ export const Sales: React.FC<SalesProps> = ({ recipes, onMakeSale, isReadonly = 
             <div>
               <span className="text-[10px] text-indigo-400 font-bold uppercase tracking-wider block mb-1">Ödenecek Tutar</span>
               <span className="text-3xl md:text-4xl font-black tracking-tight text-white">
-                ₺{cart.reduce((t, i) => t + (recipes.find(r => r.id === i.recipeId)?.price || 0) * i.qty, 0).toLocaleString('tr-TR')}
+                ₺{cart.reduce((t, i) => t + (recipes.find(r => r.id === i.recipeId)?.price || 0) * (i.qty > 0 ? i.qty : 0), 0).toLocaleString('tr-TR')}
               </span>
             </div>
             {cart.length > 0 && (

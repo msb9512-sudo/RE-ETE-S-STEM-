@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { ViewState, Role } from '../types';
 import { LayoutDashboard, Package, ScrollText, TrendingUp, Hotel, ClipboardCheck, BarChart3, ShoppingBag, LogOut, Settings as SettingsIcon, ChevronDown, ChevronRight, Users, Database, PanelLeftClose, PanelLeftOpen, ShieldAlert, MailCheck, CalendarDays, Stamp, Palette } from 'lucide-react';
+import { NotificationCenter } from './NotificationCenter';
 
 interface LayoutProps {
   currentView: ViewState;
@@ -35,6 +36,17 @@ export const Layout: React.FC<LayoutProps> = ({ currentView, onChangeView, child
   );
 
   const isAdmin = currentUser?.role === Role.ADMIN;
+
+  const getViewTitle = () => {
+    const item = menuItems.find(m => m.id === currentView);
+    if (item) return item.label;
+    if (currentView === 'settings') return 'Kullanıcı & Lisans Yönetimi';
+    if (currentView === 'stamp-settings') return 'Firma / Kaşe Bilgileri';
+    if (currentView === 'report-settings') return 'Otomatik E-Posta Rapor Ayarları';
+    if (currentView === 'ui-settings') return 'Arayüz & Tema Özelleştirme';
+    if (currentView === 'import-export') return 'Veri Merkezi (Yedekleme & Aktarım)';
+    return 'OtelPro Sistem';
+  };
 
   return (
     <div className="flex h-screen w-screen bg-[#f1f5f9] overflow-hidden">
@@ -125,6 +137,19 @@ export const Layout: React.FC<LayoutProps> = ({ currentView, onChangeView, child
       </aside>
 
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
+        {/* Üst Çubuk / Header */}
+        <header className="h-16 bg-white border-b border-slate-200/80 px-4 md:px-8 flex items-center justify-between z-30 shrink-0 shadow-sm">
+          <div className="flex items-center gap-3">
+            <h2 className="font-black text-slate-800 text-base md:text-lg tracking-tight">
+              {getViewTitle()}
+            </h2>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <NotificationCenter onNavigate={onChangeView} />
+          </div>
+        </header>
+
         {licenseExpired && (
           <div className="bg-red-600 text-white p-3 text-center text-xs font-black flex items-center justify-center gap-2 z-30 shadow-lg">
             <ShieldAlert size={16} className="animate-pulse" /> LİSANS SÜRESİ DOLDU - SADECE GÖRÜNTÜLEME MODU AKTİF
