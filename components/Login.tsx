@@ -114,15 +114,15 @@ export const Login: React.FC<LoginProps> = ({ users, onLogin, onRegister, onRese
   const displayName = appName?.trim() || "OtelPro";
 
   return (
-    <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4">
-      <div className="mb-8 text-center">
+    <div className="h-screen w-screen bg-slate-900 overflow-y-auto flex flex-col items-center p-4 py-8">
+      <div className="mb-6 sm:mb-8 text-center mt-auto">
         <div className="bg-indigo-600 p-4 rounded-2xl inline-block mb-4 shadow-lg shadow-indigo-500/20">
           <Hotel size={48} className="text-white" />
         </div>
         <h1 className="text-3xl font-bold text-white tracking-tight">{displayName} Enterprise</h1>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 relative overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 relative overflow-hidden mb-auto">
         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500"></div>
 
         {mode === 'login' ? (
@@ -154,23 +154,7 @@ export const Login: React.FC<LoginProps> = ({ users, onLogin, onRegister, onRese
               </div>
 
               <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block text-sm font-bold text-slate-700">Şifre</label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setForgotUsername(username);
-                      setForgotError(null);
-                      setForgotSuccess(false);
-                      setForgotStep(1);
-                      setForgotUser(null);
-                      setMode('forgot');
-                    }}
-                    className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 hover:underline transition-colors flex items-center gap-1"
-                  >
-                    <KeyRound size={13} /> Şifremi Unuttum?
-                  </button>
-                </div>
+                <label className="block text-sm font-bold text-slate-700 mb-1">Şifre</label>
 
                 <div className="relative">
                   <Lock className="absolute left-3 top-3 text-slate-400" size={18} />
@@ -191,6 +175,23 @@ export const Login: React.FC<LoginProps> = ({ users, onLogin, onRegister, onRese
                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
                 </div>
+
+                <div className="flex justify-end mt-1.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setForgotUsername(username);
+                      setForgotError(null);
+                      setForgotSuccess(false);
+                      setForgotStep(1);
+                      setForgotUser(null);
+                      setMode('forgot');
+                    }}
+                    className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 hover:underline transition-colors flex items-center gap-1"
+                  >
+                    <KeyRound size={13} /> Şifremi Unuttum?
+                  </button>
+                </div>
               </div>
 
               <button 
@@ -200,23 +201,6 @@ export const Login: React.FC<LoginProps> = ({ users, onLogin, onRegister, onRese
                 Giriş Yap <ArrowRight size={18} />
               </button>
             </form>
-
-            <div className="mt-6 pt-5 border-t border-slate-100 text-center">
-              <button
-                type="button"
-                onClick={() => {
-                  setForgotUsername(username);
-                  setForgotError(null);
-                  setForgotSuccess(false);
-                  setForgotStep(1);
-                  setForgotUser(null);
-                  setMode('forgot');
-                }}
-                className="text-xs text-slate-500 hover:text-indigo-600 font-medium transition-colors"
-              >
-                Giriş yapamıyor musunuz? <span className="text-indigo-600 font-bold hover:underline">Şifrenizi sıfırlayın</span>
-              </button>
-            </div>
           </div>
         ) : (
           /* ŞİFREMİ UNUTTUM / ŞİFRE SIFIRLAMA MODU */

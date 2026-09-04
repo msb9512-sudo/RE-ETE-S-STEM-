@@ -435,26 +435,11 @@ export const Settings: React.FC<SettingsProps> = ({
               </div>
 
               <form onSubmit={handleSaveStamp} className="p-6 md:p-8 space-y-6">
-                {/* Bilgi Kutusu */}
-                <div className="bg-gradient-to-r from-indigo-50/80 to-blue-50/80 border border-indigo-100 p-4 rounded-xl flex items-start gap-3">
-                  <Info size={18} className="text-indigo-600 shrink-0 mt-0.5" />
-                  <p className="text-xs text-indigo-950 font-medium leading-relaxed">
-                    <strong className="font-bold text-indigo-900">Program İsmi Değişimi: </strong>
-                    Aşağıdaki <span className="underline decoration-indigo-400 font-bold">İşletme / Firma Adı</span> alanına yazdığınız isim, 
-                    programın sol menüsündeki logosunda, giriş ekranında ve raporlarda <strong>"OtelPro"</strong> ibaresinin yerine geçer.
-                  </p>
-                </div>
-
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                    <div className="md:col-span-2">
-                      <div className="flex items-center justify-between mb-1">
-                        <label className="block text-xs font-black text-slate-700 uppercase tracking-wider">
-                          İşletme / Firma Adı (Program Başlığı) <span className="text-red-500">*</span>
-                        </label>
-                        <span className="text-[11px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">
-                          Program İsmi Olur
-                        </span>
-                      </div>
+                      <label className="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">
+                        İşletme / Firma Adı (Program Başlığı) <span className="text-red-500">*</span>
+                      </label>
                       <input 
                         type="text" 
                         required

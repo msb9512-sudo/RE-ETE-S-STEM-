@@ -46,8 +46,8 @@ export const LicenseActivation: React.FC<LicenseActivationProps> = ({ onSuccess 
   };
 
   return (
-    <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4 text-slate-900">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
+    <div className="h-screen w-screen bg-slate-900 overflow-y-auto flex flex-col items-center p-4 py-8 text-slate-900">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden my-auto">
         <div className="bg-red-600 p-6 text-white text-center">
           <Lock size={32} className="mx-auto mb-2" />
           <h1 className="text-xl font-bold">Lisans Aktivasyonu</h1>
